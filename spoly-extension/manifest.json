@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Spoly - Meeting Recorder",
+  "version": "1.0",
+  "permissions": ["activeTab", "scripting", "downloads"],
+  "action": {},
+  "background": {
+    "scripts": ["background.js"] 
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "spoly@yourdomain.com",
+      "strict_min_version": "109.0"
+    }
+  }
+}

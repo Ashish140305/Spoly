@@ -1,0 +1,30 @@
+/* 1. Import Tailwind using the Vite Plugin */
+@import "tailwindcss";
+
+/* 2. Enable your manual dark mode toggle for the React app */
+@supports selector(:where(.dark)) {
+  :where(.dark) {
+    color-scheme: dark;
+  }
+}
+
+/* 3. Add any global custom theme colors or fonts here (Optional) */
+@layer theme {
+  :root {
+    --color-brand-blue: #2563eb;
+  }
+}
+
+/* Basic resets */
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: #f8fafc; /* light mode default */
+}
+
+/* Optional: Smooth out selection colors */
+::selection {
+  background-color: #93c5fd; 
+  color: #1e3a8a; 
+}
