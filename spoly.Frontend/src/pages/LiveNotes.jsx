@@ -9,7 +9,8 @@ import {
   CheckCircle, Circle, ToggleLeft, ToggleRight, ArrowRight, ChevronRight,
   Wand2, PlayCircle, PauseCircle, Send, AlignLeft, Briefcase, Sparkles,
   Database, GitMerge, Activity, Trash2, Layers, Menu, ChevronLeft, List,
-  Tag, CalendarDays, Bot, ImageIcon, ImagePlus, Share2
+  Tag, CalendarDays, Bot, ImageIcon, ImagePlus, Share2, 
+  Brain, BookOpen, PieChart, Languages, FileUp, RefreshCw
 } from 'lucide-react';
 import MermaidDiagram from '../components/MermaidDiagram';
 
@@ -49,12 +50,22 @@ export default function LiveNotes() {
   const [status, setStatus] = useState('idle'); 
   const [timer, setTimer] = useState(0);
   const [transcript, setTranscript] = useState("");
+  
+  // --- NEW TIER-1 SAAS STATE ---
+  const [outputLanguage, setOutputLanguage] = useState('English');
+  const [contextFiles, setContextFiles] = useState([]);
+  const [isRemixing, setIsRemixing] = useState(false);
+  const [showRemixMenu, setShowRemixMenu] = useState(false);
+  const contextInputRef = useRef(null);
+
   const [activeAiTemplate, setActiveAiTemplate] = useState(null);
   const [processingType, setProcessingType] = useState('audio'); 
+  const [isWidgetDeployed, setIsWidgetDeployed] = useState(false);
   const [isExtensionActive, setIsExtensionActive] = useState(false);
   
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingContext, setIsDraggingContext] = useState(false);
   const [fileName, setFileName] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   
@@ -91,23 +102,26 @@ export default function LiveNotes() {
   const [savedNotes, setSavedNotes] = useState([
     { id: 1, title: "Sprint Planning: Q3 Authentication", date: "Feb 12, 2026", duration: "45:20", items: 4, tags: ["Engineering", "Planning"] },
     { id: 2, title: "Database Migration Sync", date: "Feb 10, 2026", duration: "32:15", items: 2, tags: ["Backend", "DevOps"] },
-    { id: 3, title: "Client Onboarding: GlobalTech", date: "Feb 05, 2026", duration: "55:00", items: 7, tags: ["Product", "External"] },
   ]);
 
   const [upcomingMeetings, setUpcomingMeetings] = useState([
     { id: 101, title: "Q3 Roadmap Planning", time: "10:00 AM", platform: "Zoom", botDeployed: false },
     { id: 102, title: "System Architecture Sync", time: "01:30 PM", platform: "Google Meet", botDeployed: false },
-    { id: 103, title: "Client Update: Acme Corp", time: "04:00 PM", platform: "Microsoft Teams", botDeployed: false },
   ]);
 
+  // --- UPGRADED MULTI-USE TEMPLATE DATABASE ---
   const templatesDB = [
-    { id: 1, name: "Microservices", category: "Architecture", desc: "Map out highly decoupled services, gateways, and data stores.", icon: <Workflow size={24}/>, theme: "blue" },
-    { id: 2, name: "User Journey", category: "Flowcharts", desc: "Visualize step-by-step user interactions and decisions.", icon: <Layers size={24}/>, theme: "purple" },
-    { id: 3, name: "Database ERD", category: "Database", desc: "Auto-generate Entity-Relationship diagrams from context.", icon: <Database size={24}/>, theme: "emerald" },
-    { id: 4, name: "Gantt Chart", category: "Planning", desc: "Structure project timelines, sprints, and dependencies.", icon: <Clock size={24}/>, theme: "amber" },
-    { id: 5, name: "Git Workflow", category: "Architecture", desc: "Visualize branch strategies, merges, and CI/CD pipelines.", icon: <GitMerge size={24}/>, theme: "rose" },
-    { id: 6, name: "State Machine", category: "Flowcharts", desc: "Map complex system states and triggers seamlessly.", icon: <Activity size={24}/>, theme: "cyan" },
+    { id: 1, name: "AI Auto-Detect", category: "General", desc: "Let Spoly listen and automatically pick the best diagram format.", icon: <Sparkles size={24}/>, theme: "purple" },
+    { id: 2, name: "Study Mind Map", category: "Education", desc: "Break down complex lectures into visual, branching concept maps.", icon: <Brain size={24}/>, theme: "blue" },
+    { id: 3, name: "Historical Timeline", category: "Education", desc: "Visualize dates, eras, and chronological events perfectly.", icon: <Clock size={24}/>, theme: "amber" },
+    { id: 4, name: "Concept Flashcards", category: "Education", desc: "Extract key terms and definitions into a study-friendly tree.", icon: <BookOpen size={24}/>, theme: "rose" },
+    { id: 5, name: "SWOT Analysis", category: "Business", desc: "Plot strengths, weaknesses, opportunities, and threats.", icon: <PieChart size={24}/>, theme: "emerald" },
+    { id: 6, name: "Project Gantt", category: "Business", desc: "Structure project timelines, deadlines, and team dependencies.", icon: <CalendarDays size={24}/>, theme: "cyan" },
+    { id: 7, name: "User Journey", category: "Business", desc: "Visualize step-by-step customer interactions and decisions.", icon: <Layers size={24}/>, theme: "purple" },
+    { id: 8, name: "Microservices", category: "Engineering", desc: "Map out decoupled services, gateways, and architecture.", icon: <Workflow size={24}/>, theme: "blue" },
+    { id: 9, name: "Database ERD", category: "Engineering", desc: "Auto-generate Entity-Relationship diagrams from context.", icon: <Database size={24}/>, theme: "emerald" },
   ];
+  const templateCategories = ['All', 'General', 'Education', 'Business', 'Engineering'];
 
   const themeClasses = {
     blue: { iconBg: "bg-blue-50 text-blue-600 border-blue-100", hover: "hover:border-blue-400", glow: "from-blue-100/50", text: "text-blue-600" },
@@ -120,15 +134,13 @@ export default function LiveNotes() {
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 3000); };
 
-  // --- THE MAGIC EXTENSION LISTENER ---
+  // --- EXTENSION LISTENER ---
   useEffect(() => {
+    setTimeout(() => { setIsWidgetDeployed(!!document.getElementById('spoly-fab-root')); }, 1000);
     const handleExtensionMessage = (event) => {
-      if (event.data.type === 'SPOLY_RECORDING_STARTED') {
-        setIsExtensionActive(true);
-        startSimulation();
-      } else if (event.data.type === 'SPOLY_RECORDING_STOPPED') {
-        handleStopRecording();
-      }
+      if (event.data.type === 'SPOLY_WIDGET_STATUS') setIsWidgetDeployed(event.data.status);
+      else if (event.data.type === 'SPOLY_RECORDING_STARTED') { setIsExtensionActive(true); startSimulation(); }
+      else if (event.data.type === 'SPOLY_RECORDING_STOPPED') handleStopRecording();
     };
     window.addEventListener('message', handleExtensionMessage);
     return () => window.removeEventListener('message', handleExtensionMessage);
@@ -145,10 +157,10 @@ export default function LiveNotes() {
 
   const finishProcessing = () => {
     setStatus('complete');
-    showToast(processingType === 'image' ? "Whiteboard Converted Successfully!" : "Smart Notes Generated Successfully!");
-    let noteTitle = fileName ? `Processed File: ${fileName}` : `Live Meeting ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    showToast(processingType === 'image' ? "Whiteboard Converted Successfully!" : `Processed in ${outputLanguage}!`);
+    let noteTitle = fileName ? `Processed File: ${fileName}` : `Live Session ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
     if (activeAiTemplate) noteTitle = `[${activeAiTemplate.name}] ${noteTitle}`;
-    const newNote = { id: Date.now(), title: noteTitle, date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), duration: formatTime(timerRef.current), items: actionItems.length, tags: [processingType === 'image' ? "Visual AI" : "AI Generated", "Recent"] };
+    const newNote = { id: Date.now(), title: noteTitle, date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), duration: formatTime(timerRef.current), items: actionItems.length, tags: [outputLanguage, activeAiTemplate?.category || "AI"] };
     setSavedNotes(prev => [newNote, ...prev]);
   };
 
@@ -172,18 +184,14 @@ export default function LiveNotes() {
     processingRef.current = setTimeout(() => { finishProcessing(); }, 2500);
   };
 
-  // --- SAFE LAUNCH TRIGGER ---
-  const handleLaunchExtension = () => {
-    // Force broadcast the message directly to the window
-    window.postMessage({ type: 'SPOLY_LAUNCH_WIDGET' }, '*');
-    showToast("Launching Spoly Extension...");
+  const handleToggleWidget = () => {
+    const isExtensionReady = document.getElementById('spoly-extension-marker');
+    if (isExtensionReady) window.postMessage({ type: 'SPOLY_TOGGLE_WIDGET' }, '*');
+    else alert("⚠️ CONNECTION PENDING\n\nPlease completely refresh this page (F5), and try clicking the button again!");
   };
 
-  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  // Main Audio Upload
   const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files && e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]); };
-  const handleFileInput = (e) => { if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0]); };
-
   const processFile = (file) => {
     const isImage = file.type.startsWith('image/'); setProcessingType(isImage ? 'image' : 'audio'); setFileName(file.name); setStatus('uploading'); setUploadProgress(0); stopTriggeredRef.current = false;
     let progress = 0; if (uploadRef.current) clearInterval(uploadRef.current);
@@ -191,14 +199,12 @@ export default function LiveNotes() {
       progress += Math.random() * 15 + 5;
       if (progress >= 100) {
         progress = 100; clearInterval(uploadRef.current); setStatus('processing');
-        if (isImage) {
-           if (processingRef.current) clearTimeout(processingRef.current);
-           processingRef.current = setTimeout(() => { finishProcessing(); }, 3000); 
-        } else {
+        if (isImage) { processingRef.current = setTimeout(() => { finishProcessing(); }, 3000); } 
+        else {
            let i = 0; if (typingRef.current) clearInterval(typingRef.current);
            typingRef.current = setInterval(() => {
              i += Math.floor(Math.random() * 20) + 15; setTranscript(fullTranscript.slice(0, i));
-             if (i >= fullTranscript.length) { clearInterval(typingRef.current); if (processingRef.current) clearTimeout(processingRef.current); processingRef.current = setTimeout(() => { finishProcessing(); }, 1500); }
+             if (i >= fullTranscript.length) { clearInterval(typingRef.current); processingRef.current = setTimeout(() => { finishProcessing(); }, 1500); }
            }, 40);
         }
       }
@@ -206,18 +212,33 @@ export default function LiveNotes() {
     }, 200);
   };
 
-  const toggleBot = (id) => { setUpcomingMeetings(prev => prev.map(m => { if (m.id === id) { if (!m.botDeployed) showToast(`Spoly Bot scheduled for ${m.title}`); return { ...m, botDeployed: !m.botDeployed }; } return m; })); };
+  // Context Files Handler
+  const handleContextDrop = (e) => {
+    e.preventDefault(); setIsDraggingContext(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setContextFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+      showToast("Context File Attached!");
+    }
+  };
+  const removeContextFile = (index) => { setContextFiles(prev => prev.filter((_, i) => i !== index)); };
 
   const handleReset = () => {
     if (typingRef.current) clearInterval(typingRef.current); if (uploadRef.current) clearInterval(uploadRef.current); if (processingRef.current) clearTimeout(processingRef.current);
     stopTriggeredRef.current = false; setStatus('idle'); setTranscript(""); setTimer(0); timerRef.current = 0; setFileName(""); setUploadProgress(0); setIsExtensionActive(false); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('workspace'); setActionItems(actionItems.map(item => ({...item, done: false}))); 
+    setContextFiles([]); // clear context on new session
   };
 
-  const toggleActionItem = (id) => { setActionItems(actionItems.map(item => item.id === id ? { ...item, done: !item.done } : item)); };
-
-  const handleAiRefine = (e, formatPreset = null) => {
-    if (e) e.preventDefault(); const prompt = formatPreset || aiPrompt; if (!prompt) return;
-    setIsAiThinking(true); setTimeout(() => { setMeetingNotes(prev => ({ ...prev, summary: `[Refined: ${prompt}] \n\n` + prev.summary })); setAiPrompt(""); setIsAiThinking(false); showToast(`Notes successfully reformatted!`); }, 1500);
+  // 🚀 NEW: REMIX ENGINE
+  const triggerRemix = (template) => {
+    setShowRemixMenu(false);
+    setActiveAiTemplate(template);
+    setIsRemixing(true);
+    setTimeout(() => {
+      setIsRemixing(false);
+      showToast(`Successfully Remixed into ${template.name}!`);
+      // Simulate notes changing based on template
+      setMeetingNotes(prev => ({...prev, summary: `[Remixed for ${template.name}]\n\n${prev.summary}`}));
+    }, 2000);
   };
 
   return (
@@ -228,41 +249,6 @@ export default function LiveNotes() {
         {toast && (
           <motion.div key="toast-notification" initial={{ opacity: 0, y: -20, x: "-50%" }} animate={{ opacity: 1, y: 0, x: "-50%" }} exit={{ opacity: 0, y: -20, x: "-50%" }} className="fixed top-6 left-1/2 z-[200] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm border border-slate-700">
             <Sparkles size={18} className="text-amber-400" /> {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {selectedNote && (
-          <motion.div key="note-viewer-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setSelectedNote(null)}>
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} onClick={e => e.stopPropagation()} className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <div className="flex items-center gap-3"><FileText className="text-blue-600"/><h2 className="text-xl font-bold text-slate-800">{selectedNote.title}</h2></div>
-                <button onClick={() => setSelectedNote(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20}/></button>
-              </div>
-              <div className="p-8 flex-1 overflow-y-auto min-h-[300px]">
-                <div className="flex items-center justify-between mb-6">
-                   <p className="text-slate-500 font-medium">Recorded on {selectedNote.date}</p>
-                   <div className="flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
-                     <button onClick={() => setIsPlayingAudio(!isPlayingAudio)} className="text-blue-600 hover:text-blue-800 transition-colors">
-                       {isPlayingAudio ? <PauseCircle size={24}/> : <PlayCircle size={24}/>}
-                     </button>
-                     <div className="w-32 h-1.5 bg-slate-300 rounded-full overflow-hidden">
-                       <motion.div className="h-full bg-blue-500" animate={{ width: isPlayingAudio ? "100%" : "30%" }} transition={{ duration: isPlayingAudio ? 45 : 0.5, ease: "linear" }} />
-                     </div>
-                     <span className="text-xs font-bold text-slate-500 w-10 text-right">{selectedNote.duration}</span>
-                   </div>
-                </div>
-                <div className="p-6 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col items-center justify-center text-blue-600 font-bold shadow-inner">
-                  <Workflow size={32} className="mb-3 text-blue-400"/> 
-                  <span>Mermaid Diagram rendering is stored securely in your dashboard.</span>
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
-                <button onClick={() => { setSelectedNote(null); showToast("Note archived"); }} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition-colors">Archive</button>
-                <button onClick={() => { setSelectedNote(null); showToast("Exporting to PDF..."); }} className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-md">Export PDF</button>
-              </div>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -322,14 +308,20 @@ export default function LiveNotes() {
             <h1 className="text-2xl font-extrabold tracking-tight capitalize">{activeTab === 'workspace' ? 'Active Workspace' : activeTab}</h1>
             <p className="text-sm text-slate-500 font-medium">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
           </div>
-          {activeTab === 'workspace' && (
-            <div className="flex gap-3">
-              {status === 'complete' && (
-                 <button onClick={() => showToast("Share link copied!")} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-slate-600 font-bold shadow-sm hover:bg-slate-50 transition-colors">
-                   <Share2 size={16}/> Share
-                 </button>
-              )}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 border border-emerald-200 rounded-full text-emerald-700 text-xs font-bold shadow-sm">
+          {activeTab === 'workspace' && status === 'idle' && (
+            <div className="flex items-center gap-4">
+              {/* 🚀 SAAS MULTI-LINGUAL SELECTOR */}
+              <div className="flex items-center bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm gap-2">
+                <Languages size={18} className="text-blue-500" />
+                <select 
+                  value={outputLanguage} onChange={(e) => setOutputLanguage(e.target.value)} 
+                  className="bg-transparent border-none focus:outline-none text-sm font-bold text-slate-700 cursor-pointer"
+                >
+                  <option>English</option><option>Marathi</option><option>Hindi</option>
+                  <option>Spanish</option><option>French</option><option>Japanese</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-full text-emerald-700 text-xs font-bold shadow-sm">
                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div> Ready
               </div>
             </div>
@@ -344,7 +336,7 @@ export default function LiveNotes() {
                 <div className="flex items-center gap-3 text-indigo-700">
                   <div className="p-2 bg-white rounded-xl shadow-sm border border-indigo-100">{activeAiTemplate.icon}</div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-indigo-500">Active AI Template</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-indigo-500">Active Template</p>
                     <p className="font-extrabold text-lg">{activeAiTemplate.name}</p>
                   </div>
                 </div>
@@ -367,10 +359,10 @@ export default function LiveNotes() {
                           {status === 'recording' && <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}
                           {(status === 'processing' || status === 'uploading') && <Zap className="text-amber-500 animate-bounce" size={20} />}
                           <h2 className="text-xl font-bold text-slate-800">
-                            {status === 'idle' && "Choose a capture method"}
+                            {status === 'idle' && "Initialize Session"}
                             {status === 'uploading' && "Uploading securely..."}
                             {status === 'recording' && (isExtensionActive ? "Monitoring Extension Audio..." : "Listening...")}
-                            {status === 'processing' && (processingType === 'image' ? "Vision AI analyzing whiteboard..." : "AI is generating structure...")}
+                            {status === 'processing' && (processingType === 'image' ? "Vision AI analyzing whiteboard..." : `Structuring Context & Translating to ${outputLanguage}...`)}
                           </h2>
                         </div>
                         <div className="flex items-center gap-2 font-mono text-xl font-black text-slate-700 bg-slate-100 px-4 py-2 rounded-xl shadow-inner border border-slate-200">
@@ -380,28 +372,60 @@ export default function LiveNotes() {
 
                       <AnimatePresence mode="wait">
                         {status === 'idle' && (
-                          <motion.div key="idle-buttons" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid lg:grid-cols-3 gap-6 pt-4 pb-4">
+                          <motion.div key="idle-buttons" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
                             
-                            {/* LAUNCH EXTENSION BUTTON */}
-                            <button onClick={handleLaunchExtension} className="group relative bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 hover:border-indigo-500 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl">
-                              <div className="absolute top-4 right-4 bg-indigo-100 text-indigo-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider shadow-sm">Float OS Widget</div>
-                              <div className="w-20 h-20 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-[0_10px_30px_rgba(79,70,229,0.3)] group-hover:scale-110 transition-transform rotate-3 group-hover:rotate-0"><Puzzle size={36} /></div>
-                              <h3 className="text-xl font-bold text-indigo-900 mt-2">Launch Extension</h3>
-                              <p className="text-indigo-700/70 font-medium text-center text-sm">Pop out an OS-level window over any Google Meet.</p>
-                            </button>
+                            <div className="grid lg:grid-cols-3 gap-6 pt-4 pb-4">
+                              <button onClick={handleToggleWidget} className={`group relative border-2 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl ${isWidgetDeployed ? 'bg-red-50 border-red-200 hover:border-red-400' : 'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200 hover:border-indigo-500'}`}>
+                                <div className={`absolute top-4 right-4 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider shadow-sm transition-colors ${isWidgetDeployed ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>{isWidgetDeployed ? 'Active' : 'Float OS Widget'}</div>
+                                <div className={`w-20 h-20 text-white rounded-2xl flex items-center justify-center shadow-[0_10px_30px_rgba(79,70,229,0.3)] transition-transform ${isWidgetDeployed ? 'bg-red-500 hover:scale-95' : 'bg-indigo-600 hover:scale-110 rotate-3 group-hover:rotate-0'}`}>{isWidgetDeployed ? <X size={36} /> : <Puzzle size={36} />}</div>
+                                <h3 className={`text-xl font-bold mt-2 transition-colors ${isWidgetDeployed ? 'text-red-900' : 'text-indigo-900'}`}>{isWidgetDeployed ? 'Close Extension' : 'Launch Extension'}</h3>
+                                <p className={`font-medium text-center text-sm transition-colors ${isWidgetDeployed ? 'text-red-700/70' : 'text-indigo-700/70'}`}>{isWidgetDeployed ? 'Remove the Spoly widget from the screen.' : 'Inject the Spoly bot onto the screen.'}</p>
+                              </button>
 
-                            <button onClick={handleStartRecording} className="group relative bg-white border-2 border-slate-200 hover:border-blue-500 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl">
-                              <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Mic size={36} /></div>
-                              <h3 className="text-xl font-bold text-slate-800 mt-2">Record Audio</h3>
-                              <p className="text-slate-500 font-medium text-center text-sm">Use your device microphone to capture an in-person meeting.</p>
-                            </button>
+                              <button onClick={handleStartRecording} className="group relative bg-white border-2 border-slate-200 hover:border-blue-500 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl">
+                                <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Mic size={36} /></div>
+                                <h3 className="text-xl font-bold text-slate-800 mt-2">Record Device Audio</h3>
+                                <p className="text-slate-500 font-medium text-center text-sm">Capture an in-person meeting via microphone.</p>
+                              </button>
 
-                            <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current.click()} className={`group relative bg-white border-2 border-dashed rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-slate-500 shadow-sm hover:bg-slate-50'}`}>
-                              <input type="file" ref={fileInputRef} onChange={handleFileInput} accept="audio/*,video/*,image/*" className="hidden" />
-                              <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-inner transition-transform group-hover:scale-110 ${isDragging ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}><ImagePlus size={36} className={isDragging ? 'animate-bounce' : ''} /></div>
-                              <h3 className="text-xl font-bold text-slate-700 mt-2">{isDragging ? 'Drop File Here' : 'Upload File / Image'}</h3>
-                              <p className="text-slate-500 font-medium text-center text-sm">Drop audio, video, or a <strong className="text-blue-600">Whiteboard Photo</strong>.</p>
+                              <div onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }} onDrop={handleDrop} onClick={() => fileInputRef.current.click()} className={`group relative bg-white border-2 border-dashed rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-slate-500 shadow-sm hover:bg-slate-50'}`}>
+                                <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0]); }} accept="audio/*,video/*,image/*" className="hidden" />
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-inner transition-transform group-hover:scale-110 ${isDragging ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}><ImagePlus size={36} className={isDragging ? 'animate-bounce' : ''} /></div>
+                                <h3 className="text-xl font-bold text-slate-700 mt-2">{isDragging ? 'Drop File Here' : 'Upload Audio/Whiteboard'}</h3>
+                                <p className="text-slate-500 font-medium text-center text-sm">Post-process an existing file.</p>
+                              </div>
                             </div>
+
+                            {/* 🚀 CONTEXT FILES RAG UPLOAD */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+                              <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold">
+                                <FileUp size={20} className="text-indigo-500"/> Add Pre-Context Documents (Optional)
+                              </div>
+                              <p className="text-sm text-slate-500 mb-4 font-medium">Upload a Syllabus, PRD, or past notes so the AI understands specific terminology before generating the diagram.</p>
+                              
+                              <div 
+                                onDragOver={(e) => { e.preventDefault(); setIsDraggingContext(true); }} 
+                                onDragLeave={(e) => { e.preventDefault(); setIsDraggingContext(false); }} 
+                                onDrop={handleContextDrop} 
+                                onClick={() => contextInputRef.current.click()}
+                                className={`w-full border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors ${isDraggingContext ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400'}`}
+                              >
+                                <input type="file" multiple ref={contextInputRef} onChange={(e) => { if(e.target.files.length) { setContextFiles(prev => [...prev, ...Array.from(e.target.files)]); showToast("Context Attached!");} }} className="hidden" />
+                                <span className="text-sm font-bold text-slate-500 flex items-center gap-2"><UploadCloud size={16}/> Drag & Drop PDFs/Docs here</span>
+                              </div>
+
+                              {contextFiles.length > 0 && (
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  {contextFiles.map((file, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">
+                                      <FileText size={14}/> {file.name}
+                                      <button onClick={(e) => { e.stopPropagation(); removeContextFile(idx); }} className="hover:text-red-500 ml-1"><X size={14}/></button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
                           </motion.div>
                         )}
 
@@ -432,13 +456,12 @@ export default function LiveNotes() {
                             {status === 'processing' && (
                               <div className="text-indigo-600 font-bold flex items-center gap-3 bg-indigo-50 px-6 py-4 rounded-full border border-indigo-100 shadow-sm">
                                 <Zap size={20} className="animate-spin" /> 
-                                {processingType === 'image' ? "Vision AI extracting Mermaid syntax from whiteboard..." : "Structuring Context & Rendering Code..."}
+                                {processingType === 'image' ? "Vision AI extracting Mermaid syntax from whiteboard..." : `Applying ${activeAiTemplate ? activeAiTemplate.name : 'AI Auto-Detect'} formatting...`}
                               </div>
                             )}
                           </motion.div>
                         )}
 
-                        {/* EXTENSION ACTIVE UI */}
                         {status === 'recording' && isExtensionActive && (
                           <motion.div key="extension-live" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-10 gap-8">
                             <AudioWaveform isRecording={true} color="bg-indigo-500" />
@@ -467,13 +490,45 @@ export default function LiveNotes() {
                   )}
                   
                   {status === 'complete' && (
-                    <motion.div key="success-panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xl rounded-[2rem] p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <motion.div key="success-panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xl rounded-[2rem] p-6 flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-visible">
+                      {isRemixing && (
+                        <div className="absolute inset-0 z-10 bg-emerald-600/90 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3 font-bold text-lg">
+                          <RefreshCw className="animate-spin text-white" size={24}/> Re-processing via Gemini...
+                        </div>
+                      )}
+                      
                       <div className="flex items-center gap-4">
                         <div className="p-3 bg-white/20 rounded-xl shadow-inner"><CheckCircle2 size={32} /></div>
-                        <div><h2 className="text-2xl font-bold tracking-tight">Documentation Generated</h2><p className="text-emerald-50 font-medium">Your smart notes and diagrams are ready below.</p></div>
+                        <div>
+                          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                            {activeAiTemplate ? activeAiTemplate.name : "Smart Document"} Generated
+                          </h2>
+                          <p className="text-emerald-50 font-medium">Output Language: {outputLanguage}</p>
+                        </div>
                       </div>
                       <div className="flex flex-col md:flex-row items-center gap-3">
-                        <div className="flex items-center gap-2 font-mono text-sm font-black text-slate-600 bg-slate-100 px-4 py-2.5 rounded-xl border border-slate-200"><Clock size={16}/> {formatTime(timerRef.current)}</div>
+                        {/* 🚀 REMIX BUTTON */}
+                        <div className="relative">
+                          <button onClick={() => setShowRemixMenu(!showRemixMenu)} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold transition-all shadow-inner border border-emerald-600">
+                            <RefreshCw size={16}/> Remix Format
+                          </button>
+                          
+                          <AnimatePresence>
+                            {showRemixMenu && (
+                              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden z-50">
+                                <div className="p-3 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">Change Template</div>
+                                <div className="max-h-60 overflow-y-auto">
+                                  {templatesDB.map(t => (
+                                    <button key={t.id} onClick={() => triggerRemix(t)} className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors">
+                                      <span className={themeClasses[t.theme].text}>{t.icon}</span> {t.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
                         <button onClick={handleReset} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-emerald-600 hover:bg-emerald-50 hover:scale-105 rounded-xl font-bold transition-all shadow-md w-full md:w-auto"><PlusCircle size={18}/> New Session</button>
                       </div>
                     </motion.div>
@@ -531,16 +586,18 @@ export default function LiveNotes() {
                 {status === 'complete' && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid xl:grid-cols-2 gap-8">
                     
-                    <div className="flex flex-col h-full bg-white/80 backdrop-blur-xl border border-white shadow-lg rounded-[2rem] overflow-hidden hover:shadow-xl transition-shadow">
+                    <div className="flex flex-col h-full bg-white/80 backdrop-blur-xl border border-white shadow-lg rounded-[2rem] overflow-hidden hover:shadow-xl transition-shadow relative">
+                      {isRemixing && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20" />}
+                      
                       <div className="p-8 pb-4 border-b border-slate-100 flex justify-between items-center bg-white/50">
                          <div className="flex items-center gap-3 text-indigo-700"><div className="p-2 bg-indigo-100 rounded-lg"><FileText size={20} /></div><h3 className="font-bold text-xl">Smart Document</h3></div>
                          <button onClick={() => { navigator.clipboard.writeText(`${meetingNotes.summary}\n\n${meetingNotes.takeaways}\n\n${meetingNotes.decisions}`); showToast("Notes copied to clipboard!"); }} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-600 font-bold text-xs transition-colors"><Copy size={14}/> Copy All</button>
                       </div>
 
                       <div className="p-8 flex-1 overflow-y-auto space-y-6">
-                         <EditableSection icon={AlignLeft} title="Executive Summary" value={meetingNotes.summary} onChange={(val) => setMeetingNotes({...meetingNotes, summary: val})} />
+                         <EditableSection icon={AlignLeft} title={activeAiTemplate?.category === 'Education' ? "Lecture Summary" : "Executive Summary"} value={meetingNotes.summary} onChange={(val) => setMeetingNotes({...meetingNotes, summary: val})} />
                          <EditableSection icon={List} title="Key Takeaways" value={meetingNotes.takeaways} onChange={(val) => setMeetingNotes({...meetingNotes, takeaways: val})} />
-                         <EditableSection icon={Briefcase} title="Technical Decisions" value={meetingNotes.decisions} onChange={(val) => setMeetingNotes({...meetingNotes, decisions: val})} />
+                         <EditableSection icon={Briefcase} title={activeAiTemplate?.category === 'Education' ? "Core Concepts" : "Technical Decisions"} value={meetingNotes.decisions} onChange={(val) => setMeetingNotes({...meetingNotes, decisions: val})} />
 
                          <div className="pt-4 border-t border-slate-100">
                            <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2 text-emerald-600 font-bold"><ListChecks size={18} /> <h4>Action Items</h4></div><span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">{actionItems.filter(i=>i.done).length} / {actionItems.length}</span></div>
@@ -573,11 +630,13 @@ export default function LiveNotes() {
                       </div>
                     </div>
 
-                    <div className="bg-white/80 backdrop-blur-xl border border-white shadow-lg rounded-[2rem] p-8 hover:shadow-xl transition-shadow flex flex-col h-full min-h-[600px]">
+                    <div className="bg-white/80 backdrop-blur-xl border border-white shadow-lg rounded-[2rem] p-8 hover:shadow-xl transition-shadow flex flex-col h-full min-h-[600px] relative">
+                      {isRemixing && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20" />}
+                      
                       <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-3 text-blue-700">
-                          <div className="p-2 bg-blue-100 rounded-lg"><Workflow size={20} /></div>
-                          <h3 className="font-bold text-xl">System Architecture</h3>
+                          <div className="p-2 bg-blue-100 rounded-lg">{activeAiTemplate ? activeAiTemplate.icon : <Workflow size={20} />}</div>
+                          <h3 className="font-bold text-xl">{activeAiTemplate ? activeAiTemplate.name : "System Architecture"}</h3>
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => setShowCode(!showCode)} className={`p-2 rounded-lg transition-colors border font-bold text-sm flex items-center gap-2 ${showCode ? 'bg-slate-800 text-white border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-transparent'}`} title="Toggle Editor">
@@ -653,13 +712,16 @@ export default function LiveNotes() {
             {/* --- TEMPLATES TAB --- */}
             {activeTab === 'templates' && (
               <motion.div key="templates-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-                 <div className="mb-8">
-                   <h2 className="text-3xl font-extrabold text-slate-900 mb-2">AI Output Templates</h2>
-                   <p className="text-slate-500 font-medium text-lg">Select a template before recording to format the specific architecture style.</p>
+                 <div className="mb-8 flex justify-between items-end">
+                   <div>
+                     <h2 className="text-3xl font-extrabold text-slate-900 mb-2">AI Output Templates</h2>
+                     <p className="text-slate-500 font-medium text-lg">Select a template before recording to format the diagram style.</p>
+                   </div>
+                   <button onClick={() => showToast("Opening Template Builder...")} className="px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl shadow-md hover:bg-slate-800 transition-colors flex items-center gap-2"><PlusCircle size={18}/> Custom Template</button>
                  </div>
                  
                  <div className="flex gap-3 mb-6 overflow-x-auto pb-2 hide-scrollbar">
-                    {['All', 'Architecture', 'Flowcharts', 'Database', 'Planning'].map(cat => (
+                    {templateCategories.map(cat => (
                       <button key={cat} onClick={() => setTemplateFilter(cat)} className={`px-5 py-2 rounded-full font-bold transition-all ${templateFilter === cat ? 'bg-slate-800 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{cat}</button>
                     ))}
                  </div>
@@ -744,23 +806,3 @@ export default function LiveNotes() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
