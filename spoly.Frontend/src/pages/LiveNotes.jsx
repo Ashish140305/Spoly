@@ -10,7 +10,7 @@ import {
   Wand2, PlayCircle, PauseCircle, Send, AlignLeft, Briefcase, Sparkles,
   Database, GitMerge, Activity, Trash2, Layers, Menu, ChevronLeft, List,
   Tag, CalendarDays, Bot, ImageIcon, ImagePlus, Share2, 
-  Brain, BookOpen, PieChart, Languages, FileUp, RefreshCw
+  Brain, BookOpen, PieChart, Languages, FileUp, RefreshCw, Headphones
 } from 'lucide-react';
 import MermaidDiagram from '../components/MermaidDiagram';
 
@@ -51,7 +51,6 @@ export default function LiveNotes() {
   const [timer, setTimer] = useState(0);
   const [transcript, setTranscript] = useState("");
   
-  // --- NEW TIER-1 SAAS STATE ---
   const [outputLanguage, setOutputLanguage] = useState('English');
   const [contextFiles, setContextFiles] = useState([]);
   const [isRemixing, setIsRemixing] = useState(false);
@@ -62,46 +61,48 @@ export default function LiveNotes() {
   const [processingType, setProcessingType] = useState('audio'); 
   const [isWidgetDeployed, setIsWidgetDeployed] = useState(false);
   const [isExtensionActive, setIsExtensionActive] = useState(false);
+  const [shouldAutoStart, setShouldAutoStart] = useState(false);
   
+  const localMediaRecorderRef = useRef(null);
+  const localAudioChunks = useRef([]);
+
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingContext, setIsDraggingContext] = useState(false);
   const [fileName, setFileName] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
   
   const typingRef = useRef(null);
   const uploadRef = useRef(null);
   const processingRef = useRef(null);
   const timerRef = useRef(0); 
+  const simulationIndex = useRef(0); 
   const stopTriggeredRef = useRef(false); 
   
   const [showCode, setShowCode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedNote, setSelectedNote] = useState(null);
   const [settingsToggles, setSettingsToggles] = useState({ notion: false, linear: true, dark: false });
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false); 
   const [templateFilter, setTemplateFilter] = useState('All');
   
-  const fullTranscript = "Alright, let's map out the new checkout flow. The user starts on the frontend client. They hit the API Gateway. The Gateway routes to the Auth Service to validate the session. If valid, the Auth Service checks the Postgres Database, and also caches the active session into Redis. Finally, we return the secure token back to the client.";
+  const fullTranscript = "Alright, let's map out the new checkout flow. The user starts on the frontend client. They hit the API Gateway. The Gateway routes to the Auth Service to validate the session. If valid, the Auth Service checks the Postgres Database, and also caches the active session into Redis. Finally, we return the secure token back to the client. We need to make sure the Redis cache has a TTL of 15 minutes to avoid stale sessions. Action item for John to configure the API Gateway routing rules by tomorrow. Sarah, you'll handle the Redis caching logic. Let's make sure the token return is encrypted. Also, ensure logging is pushed to Datadog for observability.";
   
-  const [meetingNotes, setMeetingNotes] = useState({
-    summary: "The team mapped out the secure checkout authentication flow, detailing the precise interaction between the Client, API Gateway, Auth Service, Postgres, and Redis caching layers.",
-    takeaways: "• Frontend interactions are secured via API Gateway.\n• Auth Service acts as the central validation hub.\n• Session states will be cached in Redis for high-speed retrieval.\n• PostgreSQL remains the persistent source of truth for user data.",
-    decisions: "1. Use Redis over Memcached for session caching.\n2. Secure tokens will be passed back directly to the client after DB verification."
-  });
-
+  const [meetingNotes, setMeetingNotes] = useState({ summary: "", takeaways: "", decisions: "" });
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiThinking, setIsAiThinking] = useState(false);
-  const [editableMermaid, setEditableMermaid] = useState("graph TD;\n  Client-->API_Gateway;\n  API_Gateway-->Auth_Service;\n  Auth_Service-->DB[(PostgreSQL)];\n  Auth_Service-->Cache{Redis};\n  Auth_Service-->|Token|Client;");
-  const [actionItems, setActionItems] = useState([
-    { id: 1, text: "Configure API Gateway routing rules", done: false },
-    { id: 2, text: "Setup Redis session caching logic", done: false },
-    { id: 3, text: "Implement token return to frontend", done: false }
-  ]);
+  const [editableMermaid, setEditableMermaid] = useState("graph TD;\n  Client-->API_Gateway;");
+  const [actionItems, setActionItems] = useState([]);
 
   const [savedNotes, setSavedNotes] = useState([
-    { id: 1, title: "Sprint Planning: Q3 Authentication", date: "Feb 12, 2026", duration: "45:20", items: 4, tags: ["Engineering", "Planning"] },
-    { id: 2, title: "Database Migration Sync", date: "Feb 10, 2026", duration: "32:15", items: 2, tags: ["Backend", "DevOps"] },
+    { 
+      id: 1, title: "Sprint Planning: Q3 Authentication", date: "Feb 12, 2026", duration: "45:20", items: 4, tags: ["Engineering", "English"],
+      summary: "The team mapped out the secure checkout authentication flow, detailing the precise interaction between the Client, API Gateway, Auth Service, Postgres, and Redis caching layers.",
+      takeaways: "• Frontend interactions are secured via API Gateway.\n• Auth Service acts as the central validation hub.\n• Session states will be cached in Redis for high-speed retrieval.\n• PostgreSQL remains the persistent source of truth for user data.",
+      decisions: "1. Use Redis over Memcached for session caching.\n2. Secure tokens will be passed back directly to the client after DB verification.",
+      graph: "graph TD;\n  Client-->API_Gateway;\n  API_Gateway-->Auth_Service;\n  Auth_Service-->DB[(PostgreSQL)];\n  Auth_Service-->Cache{Redis};\n  Auth_Service-->|Token|Client;",
+      audioUrl: null
+    }
   ]);
 
   const [upcomingMeetings, setUpcomingMeetings] = useState([
@@ -109,15 +110,10 @@ export default function LiveNotes() {
     { id: 102, title: "System Architecture Sync", time: "01:30 PM", platform: "Google Meet", botDeployed: false },
   ]);
 
-  // --- UPGRADED MULTI-USE TEMPLATE DATABASE ---
   const templatesDB = [
     { id: 1, name: "AI Auto-Detect", category: "General", desc: "Let Spoly listen and automatically pick the best diagram format.", icon: <Sparkles size={24}/>, theme: "purple" },
     { id: 2, name: "Study Mind Map", category: "Education", desc: "Break down complex lectures into visual, branching concept maps.", icon: <Brain size={24}/>, theme: "blue" },
     { id: 3, name: "Historical Timeline", category: "Education", desc: "Visualize dates, eras, and chronological events perfectly.", icon: <Clock size={24}/>, theme: "amber" },
-    { id: 4, name: "Concept Flashcards", category: "Education", desc: "Extract key terms and definitions into a study-friendly tree.", icon: <BookOpen size={24}/>, theme: "rose" },
-    { id: 5, name: "SWOT Analysis", category: "Business", desc: "Plot strengths, weaknesses, opportunities, and threats.", icon: <PieChart size={24}/>, theme: "emerald" },
-    { id: 6, name: "Project Gantt", category: "Business", desc: "Structure project timelines, deadlines, and team dependencies.", icon: <CalendarDays size={24}/>, theme: "cyan" },
-    { id: 7, name: "User Journey", category: "Business", desc: "Visualize step-by-step customer interactions and decisions.", icon: <Layers size={24}/>, theme: "purple" },
     { id: 8, name: "Microservices", category: "Engineering", desc: "Map out decoupled services, gateways, and architecture.", icon: <Workflow size={24}/>, theme: "blue" },
     { id: 9, name: "Database ERD", category: "Engineering", desc: "Auto-generate Entity-Relationship diagrams from context.", icon: <Database size={24}/>, theme: "emerald" },
   ];
@@ -134,17 +130,64 @@ export default function LiveNotes() {
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 3000); };
 
-  // --- EXTENSION LISTENER ---
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('autoStart') === 'true') {
+      window.history.replaceState({}, document.title, window.location.pathname); 
+      setTimeout(() => { setShouldAutoStart(true); }, 1000); 
+    }
+  }, []);
+
+  useEffect(() => {
+    if (shouldAutoStart && status === 'idle') {
+      setShouldAutoStart(false);
+      forceStartSimulation(); 
+    }
+  }, [shouldAutoStart, status]);
+
+  // 📡 EXTENSION LISTENER
   useEffect(() => {
     setTimeout(() => { setIsWidgetDeployed(!!document.getElementById('spoly-fab-root')); }, 1000);
+    
     const handleExtensionMessage = (event) => {
       if (event.data.type === 'SPOLY_WIDGET_STATUS') setIsWidgetDeployed(event.data.status);
-      else if (event.data.type === 'SPOLY_RECORDING_STARTED') { setIsExtensionActive(true); startSimulation(); }
-      else if (event.data.type === 'SPOLY_RECORDING_STOPPED') handleStopRecording();
+      
+      else if (event.data.type === 'SPOLY_RECORDING_STARTED' || event.data.type === 'SPOLY_HEARTBEAT_LIVE') { 
+        if (status === 'idle' && !stopTriggeredRef.current) {
+           setShouldAutoStart(true); 
+        }
+      }
+      
+      else if (event.data.type === 'INTERNAL_SYNC_UI') {
+        if (isExtensionActive) {
+          if (event.data.isPaused && status === 'recording') {
+            setStatus('paused');
+            if (typingRef.current) clearInterval(typingRef.current);
+          } else if (!event.data.isPaused && status === 'paused') {
+            setStatus('recording');
+            typingRef.current = setInterval(runSimulationTick, 100);
+          }
+        }
+      }
+      
+      else if (event.data.type === 'SPOLY_RECORDING_STOPPED' || event.data.type === 'SPOLY_UPLOAD_COMPLETE') {
+        if ((status === 'recording' || status === 'paused') && isExtensionActive) {
+          showToast(event.data.type === 'SPOLY_UPLOAD_COMPLETE' ? "Audio synced from extension!" : "Recording stopped locally.");
+          stopTriggeredRef.current = true; 
+          setIsExtensionActive(false);
+          
+          if (event.data.audioUrl) setCurrentAudioUrl(event.data.audioUrl);
+          if (typingRef.current) clearInterval(typingRef.current);
+          if (processingRef.current) clearTimeout(processingRef.current); 
+          
+          finishProcessing("Live Chrome Extension Session", event.data.audioUrl);
+        }
+      }
     };
+    
     window.addEventListener('message', handleExtensionMessage);
     return () => window.removeEventListener('message', handleExtensionMessage);
-  }, []);
+  }, [status, isExtensionActive]); 
 
   useEffect(() => {
     let interval;
@@ -155,33 +198,187 @@ export default function LiveNotes() {
 
   const formatTime = (seconds) => { const m = Math.floor(seconds / 60).toString().padStart(2, '0'); const s = (seconds % 60).toString().padStart(2, '0'); return `${m}:${s}`; };
 
-  const finishProcessing = () => {
+  const finishProcessing = (customTitle = null, overrideAudioUrl = null) => {
     setStatus('complete');
+    setIsExtensionActive(false);
     showToast(processingType === 'image' ? "Whiteboard Converted Successfully!" : `Processed in ${outputLanguage}!`);
-    let noteTitle = fileName ? `Processed File: ${fileName}` : `Live Session ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    let noteTitle = customTitle || (fileName ? `Processed File: ${fileName}` : `Live Session ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`);
     if (activeAiTemplate) noteTitle = `[${activeAiTemplate.name}] ${noteTitle}`;
-    const newNote = { id: Date.now(), title: noteTitle, date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), duration: formatTime(timerRef.current), items: actionItems.length, tags: [outputLanguage, activeAiTemplate?.category || "AI"] };
+    
+    const finalAudioUrl = overrideAudioUrl || currentAudioUrl;
+
+    const newNote = { 
+      id: Date.now(), 
+      title: noteTitle, 
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), 
+      duration: formatTime(timerRef.current), 
+      items: actionItems.length, 
+      tags: [outputLanguage, activeAiTemplate?.category || "AI"],
+      summary: meetingNotes.summary || "Summary successfully generated from context.",
+      takeaways: meetingNotes.takeaways || "• Key points extracted seamlessly.",
+      decisions: meetingNotes.decisions,
+      graph: editableMermaid,
+      audioUrl: finalAudioUrl
+    };
     setSavedNotes(prev => [newNote, ...prev]);
   };
 
-  const startSimulation = () => {
-    stopTriggeredRef.current = false; setProcessingType('audio');
-    setStatus('recording'); setTranscript(""); setTimer(0); timerRef.current = 0; setShowCode(false);
-    let i = 0; if (typingRef.current) clearInterval(typingRef.current);
-    typingRef.current = setInterval(() => {
-      i += Math.floor(Math.random() * 5) + 2; setTranscript(fullTranscript.slice(0, i));
-      if (i >= fullTranscript.length) clearInterval(typingRef.current);
-    }, 100);
+  const runSimulationTick = () => {
+    if (stopTriggeredRef.current) { clearInterval(typingRef.current); return; }
+
+    let i = simulationIndex.current;
+    i += Math.floor(Math.random() * 5) + 2; 
+    if (i > fullTranscript.length) i = fullTranscript.length;
+    simulationIndex.current = i;
+
+    setTranscript(fullTranscript.slice(0, i));
+
+    if (i > 80 && i < 85) {
+      setMeetingNotes(prev => ({...prev, summary: "The team is mapping out the secure checkout authentication flow, detailing the precise interaction between the Client, API Gateway, and Auth Service."}));
+      setEditableMermaid("graph TD;\n  Client-->API_Gateway;\n  API_Gateway-->Auth_Service;");
+    }
+    if (i > 200 && i < 205) {
+      setMeetingNotes(prev => ({...prev, takeaways: "• Frontend interactions are secured via API Gateway.\n• Auth Service validates sessions against Postgres DB."}));
+      setEditableMermaid("graph TD;\n  Client-->API_Gateway;\n  API_Gateway-->Auth_Service;\n  Auth_Service-->DB[(PostgreSQL)];");
+    }
+    if (i > 300 && i < 305) {
+      setMeetingNotes(prev => ({...prev, decisions: "1. Cache active sessions into Redis to ensure high-speed retrieval and token passing."}));
+      setEditableMermaid("graph TD;\n  Client-->API_Gateway;\n  API_Gateway-->Auth_Service;\n  Auth_Service-->DB[(PostgreSQL)];\n  Auth_Service-->Cache{Redis};\n  Auth_Service-->|Token|Client;");
+    }
+    if (i > 400 && i < 405) {
+      setActionItems([
+        { id: 1, text: "Configure API Gateway routing rules (Assigned: John)", done: false },
+        { id: 2, text: "Setup Redis session caching logic (Assigned: Sarah)", done: false }
+      ]);
+    }
   };
 
-  const handleStartRecording = () => startSimulation();
-  
-  const handleStopRecording = () => {
-    if (stopTriggeredRef.current) return; stopTriggeredRef.current = true;
+  const forceStartSimulation = () => {
+    if (status === 'recording' || status === 'processing' || status === 'paused') return;
+
+    setActiveTab('workspace');
+    setIsExtensionActive(true);
+    setStatus('recording');
+    stopTriggeredRef.current = false; 
+    setProcessingType('audio');
+    setTranscript(""); 
+    setTimer(0); 
+    timerRef.current = 0; 
+    simulationIndex.current = 0;
+    setShowCode(false);
+    
+    setMeetingNotes({ summary: "", takeaways: "", decisions: "" });
+    setActionItems([]);
+    setEditableMermaid("graph TD;\n  Client-->API_Gateway;");
+    setCurrentAudioUrl(null); 
+
     if (typingRef.current) clearInterval(typingRef.current);
-    setStatus('processing'); setIsExtensionActive(false); 
-    if (processingRef.current) clearTimeout(processingRef.current);
-    processingRef.current = setTimeout(() => { finishProcessing(); }, 2500);
+    typingRef.current = setInterval(runSimulationTick, 100);
+  };
+
+  // 🚀 BULLETPROOF DEVICE RECORDING
+  const handleStartLocalRecording = async () => {
+    let stream = null;
+    
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("MediaDevices not supported");
+      }
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+    } catch (err) {
+      console.warn("Spoly: Mic denied", err);
+    }
+
+    setActiveTab('workspace');
+    setIsExtensionActive(false);
+    setStatus('recording');
+    stopTriggeredRef.current = false; 
+    setProcessingType('audio');
+    setTranscript(""); 
+    setTimer(0); 
+    timerRef.current = 0; 
+    simulationIndex.current = 0;
+    setShowCode(false);
+    setMeetingNotes({ summary: "", takeaways: "", decisions: "" });
+    setActionItems([]);
+    setEditableMermaid("graph TD;\n  Client-->API_Gateway;");
+    setCurrentAudioUrl(null);
+
+    if (typingRef.current) clearInterval(typingRef.current);
+    typingRef.current = setInterval(runSimulationTick, 100);
+
+    if (stream) {
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options = { mimeType: 'audio/webm;codecs=opus' };
+      else if (MediaRecorder.isTypeSupported('audio/webm')) options = { mimeType: 'audio/webm' };
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) options = { mimeType: 'audio/mp4' };
+
+      const recorder = new MediaRecorder(stream, options);
+      localAudioChunks.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) localAudioChunks.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const mimeToUse = recorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(localAudioChunks.current, { type: mimeToUse });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        setCurrentAudioUrl(audioUrl);
+        stream.getTracks().forEach(t => t.stop());
+        
+        // 🚀 FORCE DOWNLOAD TO USER'S DEVICE
+        const downloadLink = document.createElement('a');
+        downloadLink.style.display = 'none';
+        downloadLink.href = audioUrl;
+        const fileExt = mimeToUse.includes('mp4') ? 'mp4' : 'webm';
+        downloadLink.download = `Spoly_Device_Audio_${Date.now()}.${fileExt}`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        finishProcessing("Live Classroom Capture", audioUrl);
+      };
+
+      recorder.start(1000); 
+      localMediaRecorderRef.current = recorder;
+    } else {
+      showToast("Mic unavailable or denied. Running AI Simulation mode.");
+      localMediaRecorderRef.current = null;
+    }
+  };
+
+  const toggleLocalPause = () => {
+    if (status === 'recording') {
+      if (localMediaRecorderRef.current && localMediaRecorderRef.current.state === 'recording') {
+        localMediaRecorderRef.current.pause();
+      }
+      setStatus('paused');
+      clearInterval(typingRef.current);
+    } else if (status === 'paused') {
+      if (localMediaRecorderRef.current && localMediaRecorderRef.current.state === 'paused') {
+        localMediaRecorderRef.current.resume();
+      }
+      setStatus('recording');
+      typingRef.current = setInterval(runSimulationTick, 100);
+    }
+  };
+  
+  const handleStopLocalRecording = () => {
+    if (stopTriggeredRef.current) return; 
+    stopTriggeredRef.current = true;
+    if (typingRef.current) clearInterval(typingRef.current);
+    setStatus('processing'); 
+    
+    if (localMediaRecorderRef.current && localMediaRecorderRef.current.state !== 'inactive') {
+      localMediaRecorderRef.current.stop(); 
+    } else {
+      if (processingRef.current) clearTimeout(processingRef.current);
+      processingRef.current = setTimeout(() => { finishProcessing("Live Classroom Capture"); }, 2000);
+    }
   };
 
   const handleToggleWidget = () => {
@@ -190,10 +387,15 @@ export default function LiveNotes() {
     else alert("⚠️ CONNECTION PENDING\n\nPlease completely refresh this page (F5), and try clicking the button again!");
   };
 
-  // Main Audio Upload
   const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files && e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]); };
   const processFile = (file) => {
     const isImage = file.type.startsWith('image/'); setProcessingType(isImage ? 'image' : 'audio'); setFileName(file.name); setStatus('uploading'); setUploadProgress(0); stopTriggeredRef.current = false;
+    
+    if (!isImage) {
+      const url = URL.createObjectURL(file);
+      setCurrentAudioUrl(url);
+    }
+
     let progress = 0; if (uploadRef.current) clearInterval(uploadRef.current);
     uploadRef.current = setInterval(() => {
       progress += Math.random() * 15 + 5;
@@ -204,6 +406,19 @@ export default function LiveNotes() {
            let i = 0; if (typingRef.current) clearInterval(typingRef.current);
            typingRef.current = setInterval(() => {
              i += Math.floor(Math.random() * 20) + 15; setTranscript(fullTranscript.slice(0, i));
+             setMeetingNotes({
+                summary: "The team mapped out the secure checkout authentication flow, detailing the precise interaction between the Client, API Gateway, Auth Service, Postgres, and Redis caching layers.",
+                takeaways: "• Frontend interactions are secured via API Gateway.\n• Auth Service acts as the central validation hub.",
+                decisions: "1. Use Redis over Memcached for session caching."
+             });
+             setEditableMermaid("graph TD;\n  Client-->API_Gateway;\n  API_Gateway-->Auth_Service;\n  Auth_Service-->DB[(PostgreSQL)];\n  Auth_Service-->Cache{Redis};\n  Auth_Service-->|Token|Client;");
+             if (actionItems.length === 0) {
+               setActionItems([
+                 { id: 1, text: "Configure API Gateway routing rules", done: false },
+                 { id: 2, text: "Setup Redis session caching logic", done: false }
+               ]);
+             }
+
              if (i >= fullTranscript.length) { clearInterval(typingRef.current); processingRef.current = setTimeout(() => { finishProcessing(); }, 1500); }
            }, 40);
         }
@@ -212,7 +427,6 @@ export default function LiveNotes() {
     }, 200);
   };
 
-  // Context Files Handler
   const handleContextDrop = (e) => {
     e.preventDefault(); setIsDraggingContext(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -224,19 +438,14 @@ export default function LiveNotes() {
 
   const handleReset = () => {
     if (typingRef.current) clearInterval(typingRef.current); if (uploadRef.current) clearInterval(uploadRef.current); if (processingRef.current) clearTimeout(processingRef.current);
-    stopTriggeredRef.current = false; setStatus('idle'); setTranscript(""); setTimer(0); timerRef.current = 0; setFileName(""); setUploadProgress(0); setIsExtensionActive(false); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('workspace'); setActionItems(actionItems.map(item => ({...item, done: false}))); 
-    setContextFiles([]); // clear context on new session
+    stopTriggeredRef.current = false; setStatus('idle'); setTranscript(""); setTimer(0); timerRef.current = 0; setFileName(""); setUploadProgress(0); setIsExtensionActive(false); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('workspace'); setActionItems([]); 
+    setContextFiles([]);
   };
 
-  // 🚀 NEW: REMIX ENGINE
   const triggerRemix = (template) => {
-    setShowRemixMenu(false);
-    setActiveAiTemplate(template);
-    setIsRemixing(true);
+    setShowRemixMenu(false); setActiveAiTemplate(template); setIsRemixing(true);
     setTimeout(() => {
-      setIsRemixing(false);
-      showToast(`Successfully Remixed into ${template.name}!`);
-      // Simulate notes changing based on template
+      setIsRemixing(false); showToast(`Successfully Remixed into ${template.name}!`);
       setMeetingNotes(prev => ({...prev, summary: `[Remixed for ${template.name}]\n\n${prev.summary}`}));
     }, 2000);
   };
@@ -282,7 +491,7 @@ export default function LiveNotes() {
               { id: 'templates', icon: Layers, label: 'Templates' },
               { id: 'settings', icon: Settings, label: 'Settings' }
             ].map(item => (
-              <button key={item.id} onClick={() => setActiveTab(item.id)} title={!isSidebarOpen ? item.label : ""} className={`w-full flex items-center gap-3 py-2.5 font-semibold rounded-lg transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${activeTab === item.id ? 'bg-blue-50/50 text-blue-700 border border-blue-100 shadow-sm' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}>
+              <button key={item.id} onClick={() => { setActiveTab(item.id); setSelectedNote(null); }} title={!isSidebarOpen ? item.label : ""} className={`w-full flex items-center gap-3 py-2.5 font-semibold rounded-lg transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${activeTab === item.id && !selectedNote ? 'bg-blue-50/50 text-blue-700 border border-blue-100 shadow-sm' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}>
                 <item.icon size={20} className="shrink-0" />
                 {isSidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
               </button>
@@ -305,12 +514,11 @@ export default function LiveNotes() {
         
         <header className="px-8 py-6 flex justify-between items-center bg-white/30 backdrop-blur-md border-b border-white/40 sticky top-0 z-30">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight capitalize">{activeTab === 'workspace' ? 'Active Workspace' : activeTab}</h1>
-            <p className="text-sm text-slate-500 font-medium">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight capitalize">{selectedNote ? selectedNote.title : (activeTab === 'workspace' ? 'Active Workspace' : activeTab)}</h1>
+            <p className="text-sm text-slate-500 font-medium">{selectedNote ? `Saved on ${selectedNote.date}` : new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
           </div>
           {activeTab === 'workspace' && status === 'idle' && (
             <div className="flex items-center gap-4">
-              {/* 🚀 SAAS MULTI-LINGUAL SELECTOR */}
               <div className="flex items-center bg-white border border-slate-200 rounded-full px-4 py-2 shadow-sm gap-2">
                 <Languages size={18} className="text-blue-500" />
                 <select 
@@ -325,6 +533,11 @@ export default function LiveNotes() {
                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div> Ready
               </div>
             </div>
+          )}
+          {selectedNote && (
+            <button onClick={() => setSelectedNote(null)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold transition-colors">
+              <ChevronLeft size={16}/> Back to Library
+            </button>
           )}
         </header>
 
@@ -347,193 +560,236 @@ export default function LiveNotes() {
 
           <AnimatePresence mode="wait">
             
-            {activeTab === 'workspace' && (
+            {activeTab === 'workspace' && !selectedNote && (
               <motion.div key="workspace-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-8">
                 
-                <AnimatePresence mode="wait">
-                  {status !== 'complete' && (
-                    <motion.div key="recording-panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-white/70 backdrop-blur-xl border border-white shadow-xl rounded-[2rem] p-8 space-y-8 relative overflow-hidden">
-                      
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          {status === 'recording' && <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}
-                          {(status === 'processing' || status === 'uploading') && <Zap className="text-amber-500 animate-bounce" size={20} />}
-                          <h2 className="text-xl font-bold text-slate-800">
-                            {status === 'idle' && "Initialize Session"}
-                            {status === 'uploading' && "Uploading securely..."}
-                            {status === 'recording' && (isExtensionActive ? "Monitoring Extension Audio..." : "Listening...")}
-                            {status === 'processing' && (processingType === 'image' ? "Vision AI analyzing whiteboard..." : `Structuring Context & Translating to ${outputLanguage}...`)}
-                          </h2>
-                        </div>
-                        <div className="flex items-center gap-2 font-mono text-xl font-black text-slate-700 bg-slate-100 px-4 py-2 rounded-xl shadow-inner border border-slate-200">
-                          <Clock size={18} className="text-slate-400" /> {formatTime(timer)}
-                        </div>
+                {/* IDLE OR UPLOADING STATE */}
+                {(status === 'idle' || status === 'uploading') && (
+                  <motion.div key="recording-panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-white/70 backdrop-blur-xl border border-white shadow-xl rounded-[2rem] p-8 space-y-8 relative overflow-hidden">
+                    
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-xl font-bold text-slate-800">
+                          {status === 'idle' ? "Initialize Session" : "Uploading securely..."}
+                        </h2>
                       </div>
+                    </div>
 
-                      <AnimatePresence mode="wait">
-                        {status === 'idle' && (
-                          <motion.div key="idle-buttons" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-                            
-                            <div className="grid lg:grid-cols-3 gap-6 pt-4 pb-4">
-                              <button onClick={handleToggleWidget} className={`group relative border-2 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl ${isWidgetDeployed ? 'bg-red-50 border-red-200 hover:border-red-400' : 'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200 hover:border-indigo-500'}`}>
-                                <div className={`absolute top-4 right-4 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider shadow-sm transition-colors ${isWidgetDeployed ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>{isWidgetDeployed ? 'Active' : 'Float OS Widget'}</div>
-                                <div className={`w-20 h-20 text-white rounded-2xl flex items-center justify-center shadow-[0_10px_30px_rgba(79,70,229,0.3)] transition-transform ${isWidgetDeployed ? 'bg-red-500 hover:scale-95' : 'bg-indigo-600 hover:scale-110 rotate-3 group-hover:rotate-0'}`}>{isWidgetDeployed ? <X size={36} /> : <Puzzle size={36} />}</div>
-                                <h3 className={`text-xl font-bold mt-2 transition-colors ${isWidgetDeployed ? 'text-red-900' : 'text-indigo-900'}`}>{isWidgetDeployed ? 'Close Extension' : 'Launch Extension'}</h3>
-                                <p className={`font-medium text-center text-sm transition-colors ${isWidgetDeployed ? 'text-red-700/70' : 'text-indigo-700/70'}`}>{isWidgetDeployed ? 'Remove the Spoly widget from the screen.' : 'Inject the Spoly bot onto the screen.'}</p>
-                              </button>
-
-                              <button onClick={handleStartRecording} className="group relative bg-white border-2 border-slate-200 hover:border-blue-500 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl">
-                                <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Mic size={36} /></div>
-                                <h3 className="text-xl font-bold text-slate-800 mt-2">Record Device Audio</h3>
-                                <p className="text-slate-500 font-medium text-center text-sm">Capture an in-person meeting via microphone.</p>
-                              </button>
-
-                              <div onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }} onDrop={handleDrop} onClick={() => fileInputRef.current.click()} className={`group relative bg-white border-2 border-dashed rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-slate-500 shadow-sm hover:bg-slate-50'}`}>
-                                <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0]); }} accept="audio/*,video/*,image/*" className="hidden" />
-                                <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-inner transition-transform group-hover:scale-110 ${isDragging ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}><ImagePlus size={36} className={isDragging ? 'animate-bounce' : ''} /></div>
-                                <h3 className="text-xl font-bold text-slate-700 mt-2">{isDragging ? 'Drop File Here' : 'Upload Audio/Whiteboard'}</h3>
-                                <p className="text-slate-500 font-medium text-center text-sm">Post-process an existing file.</p>
-                              </div>
-                            </div>
-
-                            {/* 🚀 CONTEXT FILES RAG UPLOAD */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
-                              <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold">
-                                <FileUp size={20} className="text-indigo-500"/> Add Pre-Context Documents (Optional)
-                              </div>
-                              <p className="text-sm text-slate-500 mb-4 font-medium">Upload a Syllabus, PRD, or past notes so the AI understands specific terminology before generating the diagram.</p>
-                              
-                              <div 
-                                onDragOver={(e) => { e.preventDefault(); setIsDraggingContext(true); }} 
-                                onDragLeave={(e) => { e.preventDefault(); setIsDraggingContext(false); }} 
-                                onDrop={handleContextDrop} 
-                                onClick={() => contextInputRef.current.click()}
-                                className={`w-full border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors ${isDraggingContext ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400'}`}
-                              >
-                                <input type="file" multiple ref={contextInputRef} onChange={(e) => { if(e.target.files.length) { setContextFiles(prev => [...prev, ...Array.from(e.target.files)]); showToast("Context Attached!");} }} className="hidden" />
-                                <span className="text-sm font-bold text-slate-500 flex items-center gap-2"><UploadCloud size={16}/> Drag & Drop PDFs/Docs here</span>
-                              </div>
-
-                              {contextFiles.length > 0 && (
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                  {contextFiles.map((file, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">
-                                      <FileText size={14}/> {file.name}
-                                      <button onClick={(e) => { e.stopPropagation(); removeContextFile(idx); }} className="hover:text-red-500 ml-1"><X size={14}/></button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                          </motion.div>
-                        )}
-
-                        {status === 'uploading' && (
-                          <motion.div key="uploading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-10 gap-6 w-full max-w-lg mx-auto">
-                            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-inner mb-2">
-                               {processingType === 'image' ? <ImageIcon size={28}/> : <FileAudio size={28} />}
-                            </div>
-                            <div className="text-center w-full">
-                              <p className="text-slate-800 font-bold text-lg mb-1 truncate px-4">{fileName}</p>
-                              <p className="text-slate-500 font-medium text-sm mb-4">Uploading to Spoly Servers...</p>
-                              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                                <motion.div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} transition={{ ease: "linear" }} />
-                              </div>
-                              <p className="text-right text-xs font-bold text-blue-600 mt-2">{Math.floor(uploadProgress)}%</p>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {(status === 'recording' || status === 'processing') && !isExtensionActive && (
-                          <motion.div key="recording" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-10 gap-8">
-                            {status === 'recording' && <AudioWaveform isRecording={true} />}
-                            {status === 'recording' && (
-                              <button onClick={handleStopRecording} className="bg-red-500 hover:bg-red-600 text-white px-8 py-4 rounded-full font-bold shadow-[0_10px_30px_rgba(239,68,68,0.4)] flex items-center gap-2 transition-transform hover:scale-105">
-                                <Square size={20} fill="currentColor" /> Stop Capture
-                              </button>
-                            )}
-                            {status === 'processing' && (
-                              <div className="text-indigo-600 font-bold flex items-center gap-3 bg-indigo-50 px-6 py-4 rounded-full border border-indigo-100 shadow-sm">
-                                <Zap size={20} className="animate-spin" /> 
-                                {processingType === 'image' ? "Vision AI extracting Mermaid syntax from whiteboard..." : `Applying ${activeAiTemplate ? activeAiTemplate.name : 'AI Auto-Detect'} formatting...`}
-                              </div>
-                            )}
-                          </motion.div>
-                        )}
-
-                        {status === 'recording' && isExtensionActive && (
-                          <motion.div key="extension-live" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-10 gap-8">
-                            <AudioWaveform isRecording={true} color="bg-indigo-500" />
-                            <div className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-6 py-3 rounded-full font-bold shadow-sm flex items-center gap-3">
-                              <Puzzle size={20} /> Connected to Spoly Extension
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {(status === 'recording' || status === 'processing') && processingType !== 'image' && (
-                        <motion.div key="terminal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-t border-slate-200 pt-8 mt-8">
-                          <div className="flex items-center justify-between mb-3 px-2">
-                              <div className="flex items-center gap-2"><FileText size={18} className="text-slate-400" /><span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Live Transcript</span></div>
-                              {isExtensionActive && <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 shadow-sm">Receiving from Chrome Extension</span>}
-                          </div>
-                          <div className="w-full h-32 bg-slate-50 border border-slate-200 shadow-inner rounded-2xl p-6 overflow-y-auto relative">
-                              <p className="font-mono text-slate-700 leading-relaxed text-sm">
-                                {transcript}
-                                {status === 'recording' && <span className="inline-block w-2 h-4 ml-1 bg-blue-500 animate-pulse align-middle"></span>}
-                              </p>
-                          </div>
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  )}
-                  
-                  {status === 'complete' && (
-                    <motion.div key="success-panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xl rounded-[2rem] p-6 flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-visible">
-                      {isRemixing && (
-                        <div className="absolute inset-0 z-10 bg-emerald-600/90 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3 font-bold text-lg">
-                          <RefreshCw className="animate-spin text-white" size={24}/> Re-processing via Gemini...
-                        </div>
-                      )}
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-white/20 rounded-xl shadow-inner"><CheckCircle2 size={32} /></div>
-                        <div>
-                          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                            {activeAiTemplate ? activeAiTemplate.name : "Smart Document"} Generated
-                          </h2>
-                          <p className="text-emerald-50 font-medium">Output Language: {outputLanguage}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col md:flex-row items-center gap-3">
-                        {/* 🚀 REMIX BUTTON */}
-                        <div className="relative">
-                          <button onClick={() => setShowRemixMenu(!showRemixMenu)} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold transition-all shadow-inner border border-emerald-600">
-                            <RefreshCw size={16}/> Remix Format
+                    {status === 'idle' && (
+                      <motion.div key="idle-buttons" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+                        
+                        <div className="grid lg:grid-cols-3 gap-6 pt-4 pb-4">
+                          <button onClick={handleToggleWidget} className={`group relative border-2 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl ${isWidgetDeployed ? 'bg-red-50 border-red-200 hover:border-red-400' : 'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200 hover:border-indigo-500'}`}>
+                            <div className={`absolute top-4 right-4 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider shadow-sm transition-colors ${isWidgetDeployed ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>{isWidgetDeployed ? 'Active' : 'Float OS Widget'}</div>
+                            <div className={`w-20 h-20 text-white rounded-2xl flex items-center justify-center shadow-[0_10px_30px_rgba(79,70,229,0.3)] transition-transform ${isWidgetDeployed ? 'bg-red-500 hover:scale-95' : 'bg-indigo-600 hover:scale-110 rotate-3 group-hover:rotate-0'}`}>{isWidgetDeployed ? <X size={36} /> : <Puzzle size={36} />}</div>
+                            <h3 className={`text-xl font-bold mt-2 transition-colors ${isWidgetDeployed ? 'text-red-900' : 'text-indigo-900'}`}>{isWidgetDeployed ? 'Close Extension' : 'Launch Extension'}</h3>
+                            <p className={`font-medium text-center text-sm transition-colors ${isWidgetDeployed ? 'text-red-700/70' : 'text-indigo-700/70'}`}>{isWidgetDeployed ? 'Remove the Spoly widget from the screen.' : 'Inject the Spoly bot onto the screen.'}</p>
                           </button>
-                          
-                          <AnimatePresence>
-                            {showRemixMenu && (
-                              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden z-50">
-                                <div className="p-3 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">Change Template</div>
-                                <div className="max-h-60 overflow-y-auto">
-                                  {templatesDB.map(t => (
-                                    <button key={t.id} onClick={() => triggerRemix(t)} className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors">
-                                      <span className={themeClasses[t.theme].text}>{t.icon}</span> {t.name}
-                                    </button>
-                                  ))}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
+
+                          <button onClick={handleStartLocalRecording} className="group relative bg-white border-2 border-slate-200 hover:border-blue-500 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all shadow-sm hover:shadow-xl">
+                            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Mic size={36} /></div>
+                            <h3 className="text-xl font-bold text-slate-800 mt-2">Record Device Audio</h3>
+                            <p className="text-slate-500 font-medium text-center text-sm">Capture an in-person meeting via microphone.</p>
+                          </button>
+
+                          <div onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }} onDrop={handleDrop} onClick={() => fileInputRef.current.click()} className={`group relative bg-white border-2 border-dashed rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-slate-500 shadow-sm hover:bg-slate-50'}`}>
+                            <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0]); }} accept="audio/*,video/*,image/*" className="hidden" />
+                            <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-inner transition-transform group-hover:scale-110 ${isDragging ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}><ImagePlus size={36} className={isDragging ? 'animate-bounce' : ''} /></div>
+                            <h3 className="text-xl font-bold text-slate-700 mt-2">{isDragging ? 'Drop File Here' : 'Upload Audio/Whiteboard'}</h3>
+                            <p className="text-slate-500 font-medium text-center text-sm">Post-process an existing file.</p>
+                          </div>
                         </div>
 
-                        <button onClick={handleReset} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-emerald-600 hover:bg-emerald-50 hover:scale-105 rounded-xl font-bold transition-all shadow-md w-full md:w-auto"><PlusCircle size={18}/> New Session</button>
+                        {/* 🚀 CONTEXT FILES RAG UPLOAD */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+                          <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold">
+                            <FileUp size={20} className="text-indigo-500"/> Add Pre-Context Documents (Optional)
+                          </div>
+                          <p className="text-sm text-slate-500 mb-4 font-medium">Upload a Syllabus, PRD, or past notes so the AI understands specific terminology before generating the diagram.</p>
+                          
+                          <div 
+                            onDragOver={(e) => { e.preventDefault(); setIsDraggingContext(true); }} 
+                            onDragLeave={(e) => { e.preventDefault(); setIsDraggingContext(false); }} 
+                            onDrop={handleContextDrop} 
+                            onClick={() => contextInputRef.current.click()}
+                            className={`w-full border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors ${isDraggingContext ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400'}`}
+                          >
+                            <input type="file" multiple ref={contextInputRef} onChange={(e) => { if(e.target.files.length) { setContextFiles(prev => [...prev, ...Array.from(e.target.files)]); showToast("Context Attached!");} }} className="hidden" />
+                            <span className="text-sm font-bold text-slate-500 flex items-center gap-2"><UploadCloud size={16}/> Drag & Drop PDFs/Docs here</span>
+                          </div>
+
+                          {contextFiles.length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {contextFiles.map((file, idx) => (
+                                <div key={idx} className="flex items-center gap-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">
+                                  <FileText size={14}/> {file.name}
+                                  <button onClick={(e) => { e.stopPropagation(); removeContextFile(idx); }} className="hover:text-red-500 ml-1"><X size={14}/></button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                      </motion.div>
+                    )}
+
+                    {status === 'uploading' && (
+                      <motion.div key="uploading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-10 gap-6 w-full max-w-lg mx-auto">
+                        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-inner mb-2">
+                           {processingType === 'image' ? <ImageIcon size={28}/> : <FileAudio size={28} />}
+                        </div>
+                        <div className="text-center w-full">
+                          <p className="text-slate-800 font-bold text-lg mb-1 truncate px-4">{fileName}</p>
+                          <p className="text-slate-500 font-medium text-sm mb-4">Uploading to Spoly Servers...</p>
+                          <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                            <motion.div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} transition={{ ease: "linear" }} />
+                          </div>
+                          <p className="text-right text-xs font-bold text-blue-600 mt-2">{Math.floor(uploadProgress)}%</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* 🚀 TRUE REAL-TIME LIVE UI (Splitscreen 30/70 Split) */}
+                {(status === 'recording' || status === 'processing' || status === 'paused') && (
+                  <motion.div key="live-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid xl:grid-cols-12 gap-8 h-[75vh]">
+                    
+                    {/* LEFT PANEL: The Live Audio Feed & Transcript */}
+                    <div className="xl:col-span-4 bg-slate-900 rounded-[2rem] shadow-2xl p-6 flex flex-col relative overflow-hidden border border-slate-800">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-500"></div>
+                      
+                      <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3 text-white">
+                          <span className={`w-3 h-3 rounded-full ${status === 'paused' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,1)]' : 'bg-red-500 animate-pulse shadow-[0_0_15px_rgba(239,68,68,1)]'}`}></span>
+                          <h2 className="text-lg font-bold flex items-center">
+                            {isExtensionActive ? "Extension Capturing" : "Mic Active"}
+                            {status === 'paused' && <span className="ml-2 text-amber-400 text-xs uppercase tracking-wider">(Paused)</span>}
+                          </h2>
+                        </div>
+                        <div className={`font-mono text-xl font-black ${status === 'paused' ? 'text-amber-400 animate-pulse' : 'text-slate-300'}`}>{formatTime(timer)}</div>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+
+                      <div className="flex justify-center my-6">
+                        <AudioWaveform isRecording={status === 'recording'} color={status === 'paused' ? 'bg-amber-500' : 'bg-emerald-400'} />
+                      </div>
+
+                      <div className="flex-1 bg-slate-800/50 rounded-2xl p-5 border border-slate-700/50 overflow-y-auto custom-scrollbar relative">
+                        <div className="sticky top-0 bg-slate-800/90 backdrop-blur-sm -mt-5 -mx-5 p-4 mb-4 border-b border-slate-700 flex items-center gap-2 text-slate-300 font-bold text-sm uppercase tracking-wider z-10">
+                          <List size={16}/> Live Transcript
+                        </div>
+                        <p className="font-mono text-slate-300 leading-relaxed text-sm">
+                          {transcript}
+                          {status === 'recording' && <span className="inline-block w-2 h-4 ml-1 bg-blue-400 animate-pulse align-middle"></span>}
+                        </p>
+                      </div>
+
+                      {/* 🚀 LOCAL RECORDING CONTROLS */}
+                      {(!isExtensionActive && (status === 'recording' || status === 'paused')) && (
+                        <div className="mt-6 flex flex-col lg:flex-row justify-center gap-3">
+                          <button onClick={toggleLocalPause} className={`px-6 py-4 rounded-full font-bold shadow-lg flex items-center justify-center gap-2 transition-transform hover:scale-105 flex-1 ${status === 'paused' ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}>
+                            {status === 'paused' ? <PlayCircle size={20} /> : <PauseCircle size={20} />} 
+                            {status === 'paused' ? 'Resume' : 'Pause'}
+                          </button>
+                          <button onClick={handleStopLocalRecording} className="bg-red-500 hover:bg-red-600 text-white px-6 py-4 rounded-full font-bold shadow-[0_10px_30px_rgba(239,68,68,0.4)] flex items-center justify-center gap-2 transition-transform hover:scale-105 flex-1">
+                            <Square size={20} fill="currentColor" /> Save
+                          </button>
+                        </div>
+                      )}
+                      
+                      {isExtensionActive && (status === 'recording' || status === 'paused') && (
+                        <div className="mt-6 flex justify-center bg-slate-800 border border-slate-700 p-4 rounded-xl text-slate-300 font-bold text-sm text-center">
+                           Please use the floating Spoly Widget to Pause, Stop, & Send this meeting.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* RIGHT PANEL: Live Note Generation Preview */}
+                    <div className="xl:col-span-8 bg-white/90 backdrop-blur-xl border border-white shadow-xl rounded-[2rem] p-8 flex flex-col relative">
+                      <div className="flex items-center gap-3 text-indigo-700 mb-6 pb-4 border-b border-slate-100">
+                        <Zap size={24} className={status === 'recording' ? "animate-pulse text-amber-500" : (status === 'paused' ? "text-amber-500 opacity-50" : "text-emerald-500")} />
+                        <h3 className="font-bold text-xl">
+                          {status === 'recording' ? "AI is actively generating notes..." : (status === 'paused' ? "AI generation paused..." : "Finalizing Smart Document...")}
+                        </h3>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+                         <div className="space-y-2">
+                           <div className="flex items-center gap-2 text-blue-600 font-bold"><AlignLeft size={16}/> Summary</div>
+                           <p className="text-slate-600 bg-slate-50 p-5 rounded-xl text-sm leading-relaxed border border-slate-100 min-h-[100px]">
+                             {meetingNotes.summary || <span className="text-slate-400 italic">Listening for context...</span>}
+                           </p>
+                         </div>
+
+                         <div className="space-y-2">
+                           <div className="flex items-center gap-2 text-purple-600 font-bold"><List size={16}/> Extracting Takeaways</div>
+                           <div className="text-slate-600 bg-slate-50 p-5 rounded-xl text-sm leading-relaxed border border-slate-100 whitespace-pre-wrap min-h-[100px]">
+                             {meetingNotes.takeaways || <span className="text-slate-400 italic">Waiting for key points...</span>}
+                           </div>
+                         </div>
+
+                         {actionItems.length > 0 && (
+                           <div className="space-y-2">
+                             <div className="flex items-center gap-2 text-emerald-600 font-bold"><ListChecks size={16}/> Action Items Detected!</div>
+                             <ul className="space-y-2">
+                               {actionItems.map(item => (
+                                 <li key={item.id} className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-medium text-emerald-800">
+                                   <CheckCircle size={16} className="text-emerald-500"/> {item.text}
+                                 </li>
+                               ))}
+                             </ul>
+                           </div>
+                         )}
+                      </div>
+                    </div>
+
+                  </motion.div>
+                )}
+                  
+                {status === 'complete' && (
+                  <motion.div key="success-panel" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xl rounded-[2rem] p-6 flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-visible mb-8">
+                    {isRemixing && (
+                      <div className="absolute inset-0 z-10 bg-emerald-600/90 backdrop-blur-md rounded-[2rem] flex items-center justify-center gap-3 font-bold text-lg">
+                        <RefreshCw className="animate-spin text-white" size={24}/> Re-processing via Gemini...
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-white/20 rounded-xl shadow-inner"><CheckCircle2 size={32} /></div>
+                      <div>
+                        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                          {activeAiTemplate ? activeAiTemplate.name : "Smart Document"} Generated
+                        </h2>
+                        <p className="text-emerald-50 font-medium">Output Language: {outputLanguage}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col md:flex-row items-center gap-3">
+                      {/* 🚀 REMIX BUTTON */}
+                      <div className="relative">
+                        <button onClick={() => setShowRemixMenu(!showRemixMenu)} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold transition-all shadow-inner border border-emerald-600">
+                          <RefreshCw size={16}/> Remix Format
+                        </button>
+                        
+                        <AnimatePresence>
+                          {showRemixMenu && (
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden z-50">
+                              <div className="p-3 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">Change Template</div>
+                              <div className="max-h-60 overflow-y-auto">
+                                {templatesDB.map(t => (
+                                  <button key={t.id} onClick={() => triggerRemix(t)} className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 flex items-center gap-3 text-sm font-bold text-slate-700 transition-colors">
+                                    <span className={themeClasses[t.theme].text}>{t.icon}</span> {t.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      <button onClick={handleReset} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-emerald-600 hover:bg-emerald-50 hover:scale-105 rounded-xl font-bold transition-all shadow-md w-full md:w-auto"><PlusCircle size={18}/> New Session</button>
+                    </div>
+                  </motion.div>
+                )}
 
                 {status === 'idle' && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid lg:grid-cols-2 gap-10 mt-12">
@@ -663,49 +919,6 @@ export default function LiveNotes() {
                     </div>
                   </motion.div>
                 )}
-              </motion.div>
-            )}
-
-            {/* --- SAVED NOTES TAB --- */}
-            {activeTab === 'notes' && (
-              <motion.div key="notes-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
-                   <h2 className="text-3xl font-extrabold text-slate-900">Your Library</h2>
-                   <div className="relative w-full md:w-auto">
-                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                     <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 pr-4 py-2 bg-white/60 backdrop-blur-md border border-white rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-72" />
-                   </div>
-                 </div>
-                 
-                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                   {savedNotes.filter(n => n.title.toLowerCase().includes(searchQuery.toLowerCase())).map(note => (
-                     <div key={note.id} onClick={() => setSelectedNote(note)} className="group relative bg-white/80 backdrop-blur-xl border border-white/80 shadow-sm hover:shadow-2xl hover:-translate-y-1 hover:border-blue-300 transition-all duration-300 rounded-[2rem] p-1 cursor-pointer overflow-hidden flex flex-col h-full min-h-[220px]">
-                        <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-blue-50 to-indigo-50 z-0"></div>
-                        <div className="relative z-10 p-6 flex flex-col h-full bg-white/50 rounded-[1.8rem] border border-white/50">
-                           <div className="flex justify-between items-start mb-4">
-                              <div className="w-12 h-12 bg-white text-blue-600 rounded-xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-110 transition-transform"><FileText size={20}/></div>
-                              <span className="text-xs font-bold text-slate-500 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-md shadow-sm border border-slate-100 flex items-center gap-1"><Calendar size={12}/> {note.date}</span>
-                           </div>
-                           <h3 className="text-xl font-bold text-slate-800 mb-4 leading-tight group-hover:text-blue-600 transition-colors flex-1">{note.title}</h3>
-                           
-                           <div className="flex gap-2 mb-6 flex-wrap">
-                             {note.tags?.map((tag, i) => <span key={i} className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md flex items-center gap-1"><Tag size={10}/> {tag}</span>)}
-                           </div>
-
-                           <div className="flex items-center justify-between text-sm font-medium text-slate-500 mt-auto border-t border-slate-200/60 pt-4">
-                              <div className="flex gap-4">
-                                 <span className="flex items-center gap-1"><Clock size={14}/> {note.duration}</span>
-                                 <span className="flex items-center gap-1"><CheckCircle2 size={14}/> {note.items} Action Items</span>
-                              </div>
-                              <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500 transition-colors"/>
-                           </div>
-                        </div>
-                     </div>
-                   ))}
-                   {savedNotes.filter(n => n.title.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                     <div className="col-span-full py-12 text-center text-slate-500 font-medium">No notes found matching "{searchQuery}"</div>
-                   )}
-                 </div>
               </motion.div>
             )}
 
