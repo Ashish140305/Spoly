@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
+  useNavigate
 } from "react-router-dom";
 import { ClerkProvider, SignedIn, SignedOut } from "@clerk/clerk-react";
 
@@ -35,10 +36,39 @@ const ProtectedRoute = ({ children }) => {
   );
 };
 
+// 🚀 NEW: Invisible component that listens to the Spoly Chrome Extension
+const ExtensionListener = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleExtensionMessage = (event) => {
+      // Listen for the silent upload success message from content.js
+      if (event.data && event.data.type === 'SPOLY_UPLOAD_COMPLETE') {
+        console.log("✅ Audio successfully received from Spoly Extension!");
+        
+        // Navigate the user directly to the Live Notes dashboard
+        navigate('/live'); 
+      }
+    };
+
+    // Attach the global listener
+    window.addEventListener('message', handleExtensionMessage);
+    
+    // Cleanup listener on unmount
+    return () => window.removeEventListener('message', handleExtensionMessage);
+  }, [navigate]);
+
+  return null; // This component works in the background and renders nothing
+};
+
+
 function App() {
   return (
     <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
       <Router>
+        {/* Mount the listener inside the Router so it can use navigate() */}
+        <ExtensionListener />
+        
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />

@@ -7,11 +7,22 @@
     "activeTab",
     "scripting",
     "downloads",
-    "storage"
+    "storage",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "commands": {
+    "toggle-record": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Start or Stop Recording"
+    },
+    "toggle-pause": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Pause or Resume Recording"
+    }
+  },
   "action": {
     "default_title": "Toggle Spoly Bot"
   },
