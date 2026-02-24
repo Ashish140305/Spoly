@@ -13,7 +13,7 @@ const GlobalMeshBackground = () => (
   </div>
 );
 
-const PrivacyPolicy = () => {
+const LegalDoc = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -124,4 +124,4 @@ const PrivacyPolicy = () => {
   );
 };
 
-export default PrivacyPolicy;
+export default LegalDoc;
