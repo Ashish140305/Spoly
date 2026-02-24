@@ -12,7 +12,7 @@ import { ClerkProvider, SignedIn, SignedOut } from "@clerk/clerk-react";
 import LandingPage from "./pages/LandingPage";
 import LiveNotes from "./pages/LiveNotes";
 import AboutUs from "./pages/AboutUs";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
+import LegalDoc from "./pages/LegalDoc";
 import TermsOfService from "./pages/TermsOfService";
 
 // Import your Publishable Key
@@ -73,7 +73,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/about" element={<AboutUs />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/privacy" element={<LegalDoc />} />
           <Route path="/terms" element={<TermsOfService />} />
 
           {/* Protected Routes */}
