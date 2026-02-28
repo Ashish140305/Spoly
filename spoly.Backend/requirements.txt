@@ -1,0 +1,23 @@
+# Web Framework
+fastapi==0.110.2
+uvicorn==0.29.0
+python-multipart==0.0.9
+
+# ML Core
+torch==2.2.2
+torchaudio==2.2.2
+transformers==4.41.2
+datasets==2.19.1
+sentencepiece==0.2.0
+
+# Speech Recognition
+openai-whisper
+# Language Detection
+langdetect==1.0.9
+
+# Translation Support
+sacremoses==0.1.1
+
+# Utilities
+numpy==1.26.4
+tqdm==4.66.4
