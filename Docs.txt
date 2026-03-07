@@ -1,2 +1,5 @@
 To Run Backend
 uvicorn app:app --reload
+
+To Activate venv
+venv\Scripts\activate
