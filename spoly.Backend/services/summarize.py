@@ -1,17 +1,30 @@
-from transformers import pipeline
+from transformers import T5Tokenizer, T5ForConditionalGeneration
+import torch
 
-summarizer = pipeline(
-    "text2text-generation",
-    model="sshleifer/distilbart-cnn-12-6"
-)
+tokenizer = None
+model = None
+
+
+def load_model():
+    global tokenizer, model
+
+    if tokenizer is None:
+
+        tokenizer = T5Tokenizer.from_pretrained("training/model")
+        model = T5ForConditionalGeneration.from_pretrained("training/model")
+
 
 def generate_notes(text):
-    prompt = f"Summarize this into structured notes:\n{text}"
-    
-    summary = summarizer(
-        prompt,
-        max_new_tokens=200,
-        do_sample=False
+
+    load_model()
+
+    prompt = "Convert this lecture text into structured notes and mermaid diagram:\n" + text
+
+    inputs = tokenizer(prompt, return_tensors="pt")
+
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=300
     )
-    
-    return summary[0]["generated_text"]
+
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
