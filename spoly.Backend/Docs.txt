@@ -3,3 +3,18 @@ uvicorn app:app --reload
 
 To Activate venv
 venv\Scripts\activate
+
+sql for clerk 
+
+create database spoyl;
+CREATE TABLE users (
+    clerk_id VARCHAR(255) PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    first_name VARCHAR(255),
+    last_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+to see new users
+USE spoly_db;
+SELECT * FROM users;
