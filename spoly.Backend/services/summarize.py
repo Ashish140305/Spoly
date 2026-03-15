@@ -1,19 +1,23 @@
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-import torch
+from peft import PeftModel
 
-tokenizer = None
 model = None
-
+tokenizer = None
 
 def load_model():
-    global tokenizer, model
+    global model, tokenizer
 
-    if tokenizer is None:
+    if model is None:
+        tokenizer = T5Tokenizer.from_pretrained("t5-small")
 
-        tokenizer = T5Tokenizer.from_pretrained("training/model")
-        model = T5ForConditionalGeneration.from_pretrained("training/model")
+        base_model = T5ForConditionalGeneration.from_pretrained("t5-small")
 
+        model = PeftModel.from_pretrained(
+            base_model,
+            "training/model"
+        )
 
+        model.eval()
 def generate_notes(text):
 
     load_model()
