@@ -38,111 +38,114 @@ function injectNexusBot() {
     
     .wrapper { position: relative; width: 60px; height: 60px; }
     
-    /* MAIN PANEL */
-    .panel { display: none; position: absolute; width: 260px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; box-shadow: 0 20px 40px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.1); padding: 14px; flex-direction: column; opacity: 0; transform: scale(0.98); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: 20; pointer-events: none; }
-    .wrapper.open .panel { display: flex; opacity: 1; transform: scale(1); pointer-events: auto; }
+    .panel { 
+        display: none; position: absolute; width: 110px; height: max-content; 
+        background: rgba(24, 24, 27, 0.95); backdrop-filter: blur(20px); 
+        border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 36px; 
+        box-shadow: 0 16px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05); 
+        padding: 16px; flex-direction: column; align-items: center; gap: 16px; 
+        
+        opacity: 0; transform: scaleY(0.4) scaleX(0.8); 
+        transition: opacity 0.2s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1); 
+        z-index: 20; pointer-events: none; 
+    }
     
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; width: 100%; gap: 10px; }
-    .title-badge { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 4px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .icon-btn { background: transparent; border: none; color: #64748b; cursor: pointer; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; transition: 0.2s; border-radius: 50%; }
-    .icon-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+    .wrapper.open .panel { 
+        display: flex; opacity: 1; transform: scaleY(1) scaleX(1); pointer-events: auto; 
+    }
+    
+    .header { display: flex; flex-direction: row; justify-content: space-between; align-items: center; width: 100%; margin: 0; }
+    .header-title { display: none; }
+    .icon-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); color: #9ca3af; cursor: pointer; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; transition: 0.2s; border-radius: 50%; }
+    .icon-btn:hover { background: rgba(255,255,255,0.15); color: white; }
 
-    .visualizer { background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border: 1px solid rgba(255,255,255,0.03); }
-    .bars { display: flex; gap: 3px; height: 14px; align-items: center; }
-    .bar { width: 3px; background: #4f46e5; border-radius: 2px; height: 20%; transition: height 0.2s ease; opacity: 0.6; }
+    .visualizer { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+    .bars { display: flex; gap: 4px; height: 16px; align-items: center; }
+    .bar { width: 3px; background: #555; border-radius: 4px; height: 20%; transition: height 0.15s ease, background 0.3s ease, box-shadow 0.3s ease; opacity: 0.8; }
     
-    .wrapper.recording .bar { animation: bounceWave 0.8s ease-in-out infinite; background: #f43f5e; opacity: 1; box-shadow: 0 0 6px rgba(244,63,94,0.6); }
+    /* 🚀 DUAL COLOR VISUALIZER STYLES */
+    .wrapper.recording .bar { animation: bounceWave 0.8s ease-in-out infinite; background: #ef4444; opacity: 1; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+    .wrapper.recording.speaker-mic .bar { background: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.6); }
+    .wrapper.recording.speaker-sys .bar { background: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,0.6); }
+    
     .wrapper.recording .bar:nth-child(1) { animation-delay: 0.0s; } .wrapper.recording .bar:nth-child(2) { animation-delay: 0.1s; } .wrapper.recording .bar:nth-child(3) { animation-delay: 0.2s; } .wrapper.recording .bar:nth-child(4) { animation-delay: 0.3s; }
-    .wrapper.paused .bar { animation: none; height: 4px; background: #fbbf24; opacity: 1; box-shadow: 0 0 6px rgba(251,191,36,0.6); }
+    .wrapper.paused .bar { animation: none; height: 4px; background: #f59e0b; opacity: 1; box-shadow: none; }
     
-    .timer { font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important; font-size: 11px; font-weight: 600; color: #64748b; letter-spacing: 0.5px; }
-    .wrapper.recording .timer { color: #fca5a5; }
-    .wrapper.paused .timer { color: #fcd34d; animation: blinkWarning 1.5s infinite; font-weight: 700; }
+    .timer { font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important; font-size: 13px; font-weight: 600; color: #808080; text-align: center; letter-spacing: 0.5px; }
+    .wrapper.recording .timer { color: #f87171; font-weight: 700; }
+    .wrapper.paused .timer { color: #fbbf24; animation: blinkWarning 1.5s infinite; font-weight: 700; }
 
-    .action-buttons { display: none; flex-direction: column; gap: 8px; width: 100%; }
-    .wrapper.recording .action-buttons, .wrapper.paused .action-buttons { display: flex; }
+    .action-buttons { 
+        display: none; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 8px; 
+        width: 100%; 
+        justify-items: center; 
+        position: relative; z-index: 50; 
+    }
+    .wrapper.recording .action-buttons, .wrapper.paused .action-buttons { display: grid; }
     .wrapper.recording #startBtn, .wrapper.paused #startBtn { display: none; }
     
-    .btn-row { display: flex; gap: 6px; width: 100%; }
-    .btn { padding: 8px 4px; border-radius: 8px; font-weight: 600; font-size: 11px; cursor: pointer; border: none; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 4px; color: white; flex: 1; }
+    .btn { cursor: pointer; border: none; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; color: white; position: relative; z-index: 50; pointer-events: auto; }
     
-    .btn-start { width: 100%; background: linear-gradient(135deg, #2563eb, #4f46e5); box-shadow: 0 4px 10px rgba(37,99,235,0.3); }
-    .btn-pause { background: linear-gradient(135deg, #d97706, #b45309); box-shadow: 0 4px 10px rgba(217,119,6,0.3); }
-    .btn-resume { background: linear-gradient(135deg, #059669, #047857); box-shadow: 0 4px 10px rgba(5,150,105,0.3); }
-    .btn-stop { background: linear-gradient(135deg, #dc2626, #9f1239); box-shadow: 0 4px 10px rgba(220,38,38,0.3); }
-    .btn-send { background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(139,92,246,0.3); width: 100%; padding: 10px; font-size: 12px; }
-    
-    /* ✨ MUTE BUTTON UNIQUE COLORS */
-    .btn-mute { background: linear-gradient(135deg, #06b6d4, #0369a1); box-shadow: 0 4px 10px rgba(6, 182, 212, 0.3); }
-    .btn-mute.muted { background: linear-gradient(135deg, #f43f5e, #9f1239); box-shadow: 0 4px 10px rgba(244, 63, 94, 0.3); }
-    
-    .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn .btn-text { display: none; } 
+    .btn svg { pointer-events: none; width: 16px; height: 16px; }
 
-    /* NEXUS CORE */
+    .btn-start { background: linear-gradient(135deg, #2563eb, #4f46e5); box-shadow: 0 4px 12px rgba(37,99,235,0.4); width: 64px; height: 64px; align-self: center; border-radius: 50%; }
+    .btn-start svg { width: 24px; height: 24px; }
+    
+    .btn-send { background: linear-gradient(135deg, #7c3aed, #6d28d9); box-shadow: 0 4px 12px rgba(124,58,237,0.3); }
+    .btn-pause, .btn-stop, .btn-mute, .btn-resume { background: rgba(255, 255, 255, 0.08); color: #d1d5db; border: 1px solid rgba(255,255,255,0.05); }
+    .btn-pause:hover, .btn-stop:hover, .btn-mute:hover { background: rgba(255, 255, 255, 0.15); color: white; }
+    
+    .btn-resume { background: linear-gradient(135deg, #d97706, #b45309); color: white; border: none; box-shadow: 0 4px 12px rgba(217,119,6,0.3); }
+    .btn-stop:hover { background: #dc2626; border-color: transparent; box-shadow: 0 4px 12px rgba(220,38,38,0.3); }
+    .btn-mute.muted { background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none; box-shadow: 0 4px 12px rgba(225,29,72,0.3); }
+    
+    .btn:active { transform: scale(0.9); }
+
     .nexus-container { width: 60px; height: 60px; position: absolute; top: 0; left: 0; cursor: grab; display: flex; align-items: center; justify-content: center; user-select: none; z-index: 30;}
     .nexus-container:active { cursor: grabbing; }
-    .orbital-ring { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 1.5px solid rgba(59, 130, 246, 0.1); border-top: 1.5px solid #3b82f6; border-right: 1.5px solid #8b5cf6; animation: spin 4s linear infinite; transition: all 0.3s ease; }
-    .orbital-ring-inner { position: absolute; width: 75%; height: 75%; border-radius: 50%; border: 1px dashed rgba(139, 92, 246, 0.4); animation: spin-reverse 6s linear infinite; transition: all 0.3s ease; }
-    .nexus-core { position: relative; width: 40px; height: 40px; border-radius: 50%; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); box-shadow: inset 0 0 12px rgba(59,130,246,0.3); display: flex; align-items: center; justify-content: center; pointer-events: none;}
-    .spark { width: 12px; height: 12px; background: linear-gradient(135deg, #60a5fa, #a78bfa); transform: rotate(45deg); box-shadow: 0 0 10px #8b5cf6; border-radius: 2px; animation: breathe 3s ease-in-out infinite; }
+    .orbital-ring { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.05); border-top: 1.5px solid #4f46e5; border-right: 1.5px solid #7c3aed; animation: spin 4s linear infinite; transition: all 0.3s ease; }
+    .orbital-ring-inner { position: absolute; width: 75%; height: 75%; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.15); animation: spin-reverse 6s linear infinite; transition: all 0.3s ease; }
+    .nexus-core { position: relative; width: 40px; height: 40px; border-radius: 50%; background: #1e1e22; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; pointer-events: none;}
+    .spark { width: 10px; height: 10px; background: linear-gradient(135deg, #a78bfa, #c084fc); transform: rotate(45deg); box-shadow: 0 0 10px #a78bfa; border-radius: 2px; animation: breathe 3s ease-in-out infinite; }
 
     .wrapper.recording .orbital-ring { border-top-color: #ef4444; border-right-color: #f43f5e; animation: spin 1s linear infinite; }
-    .wrapper.recording .orbital-ring-inner { border-color: rgba(244, 63, 94, 0.6); animation: spin-reverse 1.5s linear infinite; }
-    .wrapper.recording .nexus-core { background: rgba(69, 10, 10, 0.9); box-shadow: inset 0 0 20px rgba(239,68,68,0.5); border-color: rgba(239,68,68,0.4); }
-    .wrapper.recording .spark { border-radius: 50%; background: #fca5a5; transform: rotate(0); box-shadow: 0 0 15px #ef4444; animation: heartBeat 0.8s ease-in-out infinite alternate; }
+    .wrapper.recording .orbital-ring-inner { border-color: rgba(244, 63, 94, 0.4); animation: spin-reverse 1.5s linear infinite; }
+    .wrapper.recording .nexus-core { box-shadow: inset 0 0 15px rgba(239,68,68,0.3), 0 4px 12px rgba(0,0,0,0.5); border-color: rgba(239,68,68,0.4); }
+    .wrapper.recording .spark { border-radius: 50%; background: #fca5a5; transform: rotate(0); box-shadow: 0 0 12px #ef4444; animation: heartBeat 0.8s ease-in-out infinite alternate; }
 
     .wrapper.paused .orbital-ring { border-top-color: #f59e0b; border-right-color: #d97706; animation: spin 4s linear infinite; }
-    .wrapper.paused .orbital-ring-inner { border-color: rgba(245, 158, 11, 0.4); animation: spin-reverse 5s linear infinite; }
-    .wrapper.paused .nexus-core { background: rgba(69, 26, 3, 0.9); box-shadow: inset 0 0 20px rgba(245,158,11,0.5); border-color: rgba(245,158,11,0.4); }
-    .wrapper.paused .spark { border-radius: 50%; background: #fde68a; transform: rotate(0); box-shadow: 0 0 15px #fbbf24; animation: breathe 2s ease-in-out infinite alternate; }
+    .wrapper.paused .orbital-ring-inner { border-color: rgba(245, 158, 11, 0.3); animation: spin-reverse 5s linear infinite; }
+    .wrapper.paused .nexus-core { box-shadow: inset 0 0 15px rgba(245,158,11,0.3), 0 4px 12px rgba(0,0,0,0.5); border-color: rgba(245,158,11,0.4); }
+    .wrapper.paused .spark { border-radius: 50%; background: #fde68a; transform: rotate(0); box-shadow: 0 0 12px #fbbf24; animation: breathe 2s ease-in-out infinite alternate; }
 
-    /* 🚀 PERSISTENT SMART TIMER BADGE */
-    .orb-timer { 
-       position: absolute; left: 50%; transform: translateX(-50%) scale(0.8); 
-       background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); 
-       padding: 4px 10px; border-radius: 12px; font-family: ui-monospace, SFMono-Regular, monospace; 
-       font-size: 11px; font-weight: 800; color: #fca5a5; opacity: 0; pointer-events: none; 
-       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); 
-       border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 40; 
-       white-space: nowrap; 
-    }
-    
-    /* Smart Edge Detection Placement */
+    .orb-timer { position: absolute; left: 50%; transform: translateX(-50%) scale(0.8); background: rgba(30, 30, 34, 0.95); backdrop-filter: blur(8px); padding: 4px 10px; border-radius: 999px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; font-weight: 600; color: #f87171; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 40; white-space: nowrap; }
     .wrapper.pos-top .orb-timer, .wrapper:not(.pos-top):not(.pos-bottom) .orb-timer { bottom: -24px; top: auto; }
     .wrapper.pos-bottom .orb-timer { top: -24px; bottom: auto; }
-
     .wrapper.recording .orb-timer, .wrapper.paused .orb-timer { opacity: 1; transform: translateX(-50%) scale(1); }
     .wrapper.paused .orb-timer { color: #fcd34d; animation: blinkWarning 1.5s infinite; }
+    .wrapper.open .orb-timer { opacity: 0 !important; transform: translateX(-50%) scale(0.8) !important; }
 
-    /* 🪐 GHOST HITBOX & ORBITAL MENU */
-    .orbital-menu { 
-      position: absolute; 
-      top: 50%; left: 50%; 
-      width: 250px; height: 250px; 
-      transform: translate(-50%, -50%); 
-      z-index: 10; 
-      pointer-events: none; 
-      border-radius: 50%;
-    }
+    .orbital-menu { position: absolute; top: 50%; left: 50%; width: 250px; height: 250px; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; border-radius: 50%; }
     .wrapper.open .orbital-menu { display: none !important; }
-    .wrapper:not(.dragging):hover .orbital-menu { pointer-events: auto; background: rgba(0, 0, 0, 0.01); }
+    .wrapper:not(.dragging):hover .orbital-menu { pointer-events: auto; }
     
     .orb-btn {
-      position: absolute; top: 50%; left: 50%;
-      width: 40px; height: 40px; border-radius: 50%;
+      position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      border: 1px solid rgba(255,255,255,0.1); color: white;
+      background: rgba(40, 40, 45, 0.9); border: 1px solid rgba(255,255,255,0.1); color: white;
       transform: translate(-50%, -50%) scale(0.4); opacity: 0;
       transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-      cursor: pointer; pointer-events: none;
+      cursor: pointer; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
       --tx: 0px; --ty: 0px;
     }
     
     .wrapper:not(.dragging):hover .orb-btn { opacity: 1; pointer-events: auto; }
-    .wrapper:not(.dragging):hover .orb-btn:hover { filter: brightness(1.2); transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.15) !important; }
+    .wrapper:not(.dragging):hover .orb-btn:hover { filter: brightness(1.2); transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.1) !important; }
     .wrapper:hover .orb-btn { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1); }
 
-    /* 🪐 PERFECT MATHEMATICAL ARC ALIGNMENT (Radius ~ 85px) */
     .wrapper.recording.pos-right .orb-send,   .wrapper.paused.pos-right .orb-send   { --tx: -20px; --ty: -82px; }
     .wrapper.recording.pos-right .orb-expand, .wrapper.paused.pos-right .orb-expand { --tx: -65px; --ty: -55px; }
     .wrapper.recording.pos-right .orb-pause,  .wrapper.paused.pos-right .orb-pause  { --tx: -85px; --ty: 0px;   }
@@ -155,30 +158,21 @@ function injectNexusBot() {
     .wrapper.recording.pos-left .orb-mute,   .wrapper.paused.pos-left .orb-mute   { --tx: 65px; --ty: 55px;  }
     .wrapper.recording.pos-left .orb-stop,   .wrapper.paused.pos-left .orb-stop   { --tx: 20px; --ty: 82px;  }
 
-    /* IDLE ORBITAL CLUSTER (Tight grouped layout when not recording) */
     .wrapper:not(.recording):not(.paused).pos-right .orb-start  { --tx: -65px; --ty: -30px; }
     .wrapper:not(.recording):not(.paused).pos-right .orb-expand { --tx: -65px; --ty: 30px;  }
     .wrapper:not(.recording):not(.paused).pos-left .orb-start   { --tx: 65px; --ty: -30px;  }
     .wrapper:not(.recording):not(.paused).pos-left .orb-expand  { --tx: 65px; --ty: 30px;   }
 
-    /* Button Colors */
-    .orb-start { background: linear-gradient(135deg, #2563eb, #4f46e5); box-shadow: 0 4px 10px rgba(37,99,235,0.4); }
-    .orb-pause { background: linear-gradient(135deg, #d97706, #b45309); box-shadow: 0 4px 10px rgba(217,119,6,0.4); }
-    .orb-stop  { background: linear-gradient(135deg, #dc2626, #9f1239); box-shadow: 0 4px 10px rgba(220,38,38,0.4); }
-    .orb-send  { background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(139,92,246,0.4); }
-    .orb-expand{ background: rgba(30, 41, 59, 0.95); box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); }
-    
-    .orb-mute { background: linear-gradient(135deg, #06b6d4, #0369a1); box-shadow: 0 4px 10px rgba(6, 182, 212, 0.4); }
-    .orb-mute.muted { background: linear-gradient(135deg, #f43f5e, #9f1239); box-shadow: 0 4px 10px rgba(244, 63, 94, 0.4); }
+    .orb-start { background: linear-gradient(135deg, #2563eb, #4f46e5); border: none; }
+    .orb-send  { background: linear-gradient(135deg, #7c3aed, #6d28d9); border: none; }
+    .orb-mute.muted { background: linear-gradient(135deg, #e11d48, #be123c); border: none; }
 
     .wrapper:not(.recording):not(.paused) .orb-pause,
     .wrapper:not(.recording):not(.paused) .orb-stop,
     .wrapper:not(.recording):not(.paused) .orb-send,
     .wrapper:not(.recording):not(.paused) .orb-mute { display: none; }
-    
-    .wrapper.recording .orb-start, .wrapper.paused .orb-start { display: none; }
 
-    @keyframes spin { 100% { transform: rotate(360deg); } } @keyframes spin-reverse { 100% { transform: rotate(-360deg); } } @keyframes breathe { 0%, 100% { transform: rotate(45deg) scale(1); } 50% { transform: rotate(45deg) scale(1.2); } } @keyframes heartBeat { 0% { transform: scale(0.8); } 100% { transform: scale(1.3); } } @keyframes bounceWave { 0%, 100% { height: 20%; } 50% { height: 90%; } } @keyframes blinkWarning { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes spin { 100% { transform: rotate(360deg); } } @keyframes spin-reverse { 100% { transform: rotate(-360deg); } } @keyframes breathe { 0%, 100% { transform: rotate(45deg) scale(1); } 50% { transform: rotate(45deg) scale(1.1); } } @keyframes heartBeat { 0% { transform: scale(0.85); } 100% { transform: scale(1.15); } } @keyframes bounceWave { 0%, 100% { height: 20%; } 50% { height: 90%; } } @keyframes blinkWarning { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
   `;
   shadow.appendChild(style);
 
@@ -186,44 +180,42 @@ function injectNexusBot() {
   wrapperElement.className = 'wrapper';
   wrapperElement.id = 'widget-wrapper';
   
-  const micIconSvg = `<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>`;
-
   wrapperElement.innerHTML = `
     <div class="panel" id="spoly-panel">
       <div class="header">
-        <div class="title-badge header-title"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Spoly AI</div>
-        <div style="display:flex; gap:4px;">
-          <button class="icon-btn" id="collapse-panel" title="Collapse to Radial Menu"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-          <button class="icon-btn" id="close-panel" title="Close Widget"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>
-        </div>
+        <button class="icon-btn" id="collapse-panel" title="Collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        <button class="icon-btn" id="close-panel" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>
       </div>
+      
       <div class="visualizer" id="visualizerBox">
         <div class="bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
         <span class="timer" id="timerDisplay">Ready</span>
       </div>
-      <button class="btn btn-start" id="startBtn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg> <span class="btn-text">Capture Meeting</span>
+      
+      <button class="btn btn-start" id="startBtn" title="Capture Meeting">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg> 
       </button>
+      
       <div class="action-buttons" id="actionBtns">
-        <div class="btn-row">
           <button class="btn btn-pause" id="pauseBtn" title="Pause">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> <span class="btn-text">Pause</span>
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> 
           </button>
+          
           <button class="btn btn-mute" id="muteBtn" title="Toggle Mic">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></svg> <span class="btn-text">Mute</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></svg> 
           </button>
+          
           <button class="btn btn-stop" id="stopBtn" title="Save Local">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect width="16" height="16" x="4" y="4" rx="3"/></svg> <span class="btn-text">Save</span>
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect width="16" height="16" x="4" y="4" rx="3"/></svg> 
           </button>
-        </div>
-        <button class="btn btn-send" id="sendBtn" title="Analyze with Spoly">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> <span class="btn-text">Stop & Send to Spoly</span>
-        </button>
+          
+          <button class="btn btn-send" id="sendBtn" title="Analyze with Spoly">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> 
+          </button>
       </div>
     </div>
 
     <div class="nexus-container" id="nexus-trigger"><div class="orbital-ring"></div><div class="orbital-ring-inner"></div><div class="nexus-core"><div class="spark"></div></div></div>
-
     <div class="orb-timer" id="orbTimer">00:00</div>
 
     <div class="orbital-menu" id="orbital-menu">
@@ -272,7 +264,7 @@ function injectNexusBot() {
   const orbTimer = shadow.getElementById('orbTimer');
 
   let mediaRecorder = null; let audioChunks = []; let timerInterval = null; let seconds = 0;
-  let isSendingToCloud = false; let audioCtx, analyser, dataArray, silenceTimer;
+  let isSendingToCloud = false; let audioCtx, silenceTimer;
   let isAutoPaused = false; 
 
   let displayStream = null;
@@ -282,14 +274,13 @@ function injectNexusBot() {
   const formatTime = (sec) => { const m = Math.floor(sec / 60).toString().padStart(2, '0'); const s = (sec % 60).toString().padStart(2, '0'); return `${m}:${s}`; };
   const updateTimers = (timeStr) => { timerDisplay.textContent = timeStr; orbTimer.textContent = timeStr; };
 
-  // 🚀 DYNAMIC MUTE UI RENDERER
   function applyMuteUI(muted) {
     isMicMuted = muted;
     const activeSvg = muted 
       ? `<line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 1.67"/><line x1="12" x2="12" y1="19" y2="22"/>`
       : `<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>`;
 
-    muteBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${activeSvg}</svg> <span class="btn-text">${muted ? 'Mic Off' : 'Mic Live'}</span>`;
+    muteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${activeSvg}</svg>`;
     orbMute.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${activeSvg}</svg>`;
 
     if (muted) { muteBtn.classList.add('muted'); orbMute.classList.add('muted'); } 
@@ -316,21 +307,28 @@ function injectNexusBot() {
 
   function updatePanelPosition() {
     const rect = host.getBoundingClientRect();
-    const isLeft = rect.left < 260; const isTop = rect.top < 160;   
+    const isTop = rect.top < 160;
+    const isLeftHalf = rect.left < window.innerWidth / 2;   
     
-    if (isLeft) { panel.style.left = '0px'; panel.style.right = 'auto'; wrapper.classList.add('pos-left'); wrapper.classList.remove('pos-right'); } 
-    else { panel.style.right = '0px'; panel.style.left = 'auto'; wrapper.classList.add('pos-right'); wrapper.classList.remove('pos-left'); }
-    
-    if (isTop) { 
-       panel.style.top = '70px'; panel.style.bottom = 'auto'; 
-       wrapper.classList.add('pos-top'); wrapper.classList.remove('pos-bottom');
-    } 
-    else { 
-       panel.style.bottom = '70px'; panel.style.top = 'auto'; 
-       wrapper.classList.add('pos-bottom'); wrapper.classList.remove('pos-top');
+    if (isLeftHalf) { 
+        wrapper.classList.add('pos-left'); wrapper.classList.remove('pos-right'); 
+    } else { 
+        wrapper.classList.add('pos-right'); wrapper.classList.remove('pos-left'); 
     }
     
-    panel.style.transformOrigin = `${isTop ? 'top' : 'bottom'} ${isLeft ? 'left' : 'right'}`;
+    if (rect.left < 30) {
+        panel.style.left = '0px'; panel.style.right = 'auto'; panel.style.transformOrigin = `${isTop ? 'top' : 'bottom'} left`;
+    } else if (window.innerWidth - rect.right < 30) {
+        panel.style.right = '0px'; panel.style.left = 'auto'; panel.style.transformOrigin = `${isTop ? 'top' : 'bottom'} right`;
+    } else {
+        panel.style.left = '-25px'; panel.style.right = 'auto'; panel.style.transformOrigin = `${isTop ? 'top' : 'bottom'} center`;
+    }
+    
+    if (isTop) { 
+       panel.style.top = '72px'; panel.style.bottom = 'auto'; wrapper.classList.add('pos-top'); wrapper.classList.remove('pos-bottom');
+    } else { 
+       panel.style.bottom = '72px'; panel.style.top = 'auto'; wrapper.classList.add('pos-bottom'); wrapper.classList.remove('pos-top');
+    }
   }
 
   function applyPanelState(isOpen) {
@@ -339,7 +337,8 @@ function injectNexusBot() {
     updatePanelPosition();
   }
 
-  chrome.storage.local.get(['spolyBotX', 'spolyBotY', 'spolyPanelOpen', 'spolyRecordingLive', 'spolyRecordingPaused', 'spolyRecordingStartTime', 'spolyMicMuted'], (res) => {
+  // 🚀 FIX: Sync ALL visual states when injected on a new tab
+  chrome.storage.local.get(['spolyBotX', 'spolyBotY', 'spolyPanelOpen', 'spolyRecordingLive', 'spolyRecordingPaused', 'spolyRecordingStartTime', 'spolyMicMuted', 'spolySpeakerState'], (res) => {
     if (res.spolyBotX !== undefined && res.spolyBotY !== undefined) {
       host.style.left = `${Math.max(0, Math.min(res.spolyBotX, window.innerWidth - 60))}px`;
       host.style.top = `${Math.max(0, Math.min(res.spolyBotY, window.innerHeight - 60))}px`;
@@ -349,6 +348,12 @@ function injectNexusBot() {
     
     if (res.spolyMicMuted !== undefined) applyMuteUI(res.spolyMicMuted);
     else applyMuteUI(true); 
+    
+    if (res.spolyRecordingLive && res.spolySpeakerState && wrapper) {
+        wrapper.classList.remove('speaker-mic', 'speaker-sys');
+        if (res.spolySpeakerState === 'mic') wrapper.classList.add('speaker-mic');
+        if (res.spolySpeakerState === 'sys') wrapper.classList.add('speaker-sys');
+    }
   });
 
   let hasMoved = false; let dragOffsetX = 0, dragOffsetY = 0;
@@ -365,27 +370,71 @@ function injectNexusBot() {
     } 
   });
   
-  closePanelBtn.onclick = () => { chrome.runtime.sendMessage({ action: 'GLOBAL_CLOSE' }); };
+  closePanelBtn.onclick = () => { 
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      alert("⚠️ A recording is currently in progress!\n\nPlease use the 'Save' or 'Send' button to stop the recording before closing the widget.");
+      return;
+    }
+    chrome.runtime.sendMessage({ action: 'GLOBAL_CLOSE' }); 
+  };
+  
   collapsePanelBtn.onclick = () => { chrome.storage.local.set({ spolyPanelOpen: false }); applyPanelState(false); };
 
-  function monitorSilence(stream, ctx) {
+  function monitorAudio(micStream, sysStream, ctx) {
     if (!ctx) return;
-    const source = ctx.createMediaStreamSource(stream);
-    analyser = ctx.createAnalyser(); analyser.fftSize = 256;
-    source.connect(analyser); dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let micAnalyser = null, sysAnalyser = null;
+    let micData = null, sysData = null;
+    let lastSpeakerState = 'none'; 
+
+    if (micStream && micStream.getAudioTracks().length > 0) {
+      const micSource = ctx.createMediaStreamSource(new MediaStream([micStream.getAudioTracks()[0]]));
+      micAnalyser = ctx.createAnalyser(); micAnalyser.fftSize = 256;
+      micSource.connect(micAnalyser);
+      micData = new Uint8Array(micAnalyser.frequencyBinCount);
+    }
+
+    if (sysStream && sysStream.getAudioTracks().length > 0) {
+      const sysSource = ctx.createMediaStreamSource(new MediaStream([sysStream.getAudioTracks()[0]]));
+      sysAnalyser = ctx.createAnalyser(); sysAnalyser.fftSize = 256;
+      sysSource.connect(sysAnalyser);
+      sysData = new Uint8Array(sysAnalyser.frequencyBinCount);
+    }
 
     function checkLevel() {
       if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-      analyser.getByteFrequencyData(dataArray);
-      let sum = dataArray.reduce((a, b) => a + b, 0);
-      let avgVolume = sum / dataArray.length;
+      
+      let micVol = 0, sysVol = 0;
+      if (micAnalyser && !isMicMuted) {
+        micAnalyser.getByteFrequencyData(micData);
+        micVol = micData.reduce((a, b) => a + b, 0) / micData.length;
+      }
+      if (sysAnalyser) {
+        sysAnalyser.getByteFrequencyData(sysData);
+        sysVol = sysData.reduce((a, b) => a + b, 0) / sysData.length;
+      }
 
       if (mediaRecorder.state === 'recording') {
-        if (avgVolume < 2) { 
+        let currentSpeaker = 'none';
+        if (micVol > sysVol + 5 && micVol > 5) currentSpeaker = 'mic';
+        else if (sysVol > micVol + 5 && sysVol > 5) currentSpeaker = 'sys';
+
+        if (currentSpeaker !== lastSpeakerState) {
+           lastSpeakerState = currentSpeaker;
+           // Push to storage so other tabs see the color change instantly!
+           chrome.storage.local.set({ spolySpeakerState: currentSpeaker });
+           
+           wrapper.classList.remove('speaker-mic', 'speaker-sys');
+           if (currentSpeaker === 'mic') wrapper.classList.add('speaker-mic');
+           if (currentSpeaker === 'sys') wrapper.classList.add('speaker-sys');
+        }
+
+        const maxVol = Math.max(micVol, sysVol);
+        if (maxVol < 2) { 
           if (!silenceTimer) { silenceTimer = setTimeout(() => { if (mediaRecorder.state === 'recording') { isAutoPaused = true; pauseBtn.click(); chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Spoly paused recording due to silence.' }); } }, 30000); }
         } else { clearTimeout(silenceTimer); silenceTimer = null; }
       } else if (mediaRecorder.state === 'paused' && isAutoPaused) {
-        if (avgVolume > 4) { isAutoPaused = false; pauseBtn.click(); chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Audio detected! Spoly resumed recording.' }); }
+        const maxVol = Math.max(micVol, sysVol);
+        if (maxVol > 4) { isAutoPaused = false; pauseBtn.click(); chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Audio detected! Spoly resumed recording.' }); }
       }
       requestAnimationFrame(checkLevel);
     }
@@ -459,8 +508,8 @@ function injectNexusBot() {
         
         chrome.runtime.sendMessage({ action: 'SET_BADGE', text: '', color: '#000000' });
         
-        wrapper.classList.remove('recording', 'paused');
-        pauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> <span class="btn-text">Pause</span>`;
+        wrapper.classList.remove('recording', 'paused', 'speaker-mic', 'speaker-sys');
+        pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
         orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
         pauseBtn.classList.remove('btn-resume'); pauseBtn.classList.add('btn-pause');
         
@@ -473,7 +522,6 @@ function injectNexusBot() {
             chrome.runtime.sendMessage({ action: 'PROCESS_AND_SEND_AUDIO', audioData: reader.result });
             chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Meeting successfully sent to Spoly!' });
             chrome.storage.local.set({ spolyPanelOpen: false }); 
-            setTimeout(() => { sendBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> <span class="btn-text">Stop & Send to Spoly</span>`; sendBtn.style.opacity = '1'; }, 500);
           };
         } else {
           chrome.runtime.sendMessage({ action: 'RECORDING_STOPPED' }).catch(() => {});
@@ -486,11 +534,20 @@ function injectNexusBot() {
       displayStream.getVideoTracks()[0].onended = () => { if (mediaRecorder && mediaRecorder.state !== 'inactive') stopBtn.click(); };
 
       mediaRecorder.start();
-      monitorSilence(mixedAudioStream, audioCtx); 
+      monitorAudio(micStreamGlobal, displayStream, audioCtx); 
       isMasterTab = true; isAutoPaused = false;
       
-      chrome.storage.local.set({ spolyRecordingLive: true, spolyRecordingStartTime: Date.now(), spolyRecordingPaused: false });
-      chrome.runtime.sendMessage({ action: 'RECORDING_STARTED' }).catch(() => {});
+      const pageTitle = document.title || "Live Web Capture";
+      
+      // 🚀 Save Title directly to Storage for bulletproof syncing
+      chrome.storage.local.set({ 
+          spolyRecordingLive: true, 
+          spolyRecordingStartTime: Date.now(), 
+          spolyRecordingPaused: false,
+          spolyRecordingTitle: pageTitle 
+      });
+      
+      chrome.runtime.sendMessage({ action: 'RECORDING_STARTED', title: pageTitle }).catch(() => {});
       chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Dual-Stream Recording started successfully!' });
       chrome.runtime.sendMessage({ action: 'SET_BADGE', text: 'REC', color: '#EF4444' }); 
       
@@ -511,8 +568,8 @@ function injectNexusBot() {
 
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       mediaRecorder.pause();
-      wrapper.classList.remove('recording'); wrapper.classList.add('paused');
-      pauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg> <span class="btn-text">Resume</span>`;
+      wrapper.classList.remove('recording', 'speaker-mic', 'speaker-sys'); wrapper.classList.add('paused');
+      pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
       orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
       pauseBtn.classList.remove('btn-pause'); pauseBtn.classList.add('btn-resume');
 
@@ -523,7 +580,7 @@ function injectNexusBot() {
     } else if (mediaRecorder && mediaRecorder.state === 'paused') {
       mediaRecorder.resume();
       wrapper.classList.remove('paused'); wrapper.classList.add('recording');
-      pauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> <span class="btn-text">Pause</span>`;
+      pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
       orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
       pauseBtn.classList.remove('btn-resume'); pauseBtn.classList.add('btn-pause');
 
@@ -543,7 +600,7 @@ function injectNexusBot() {
   sendBtn.onclick = async () => {
     if (!isMasterTab) return chrome.runtime.sendMessage({ action: 'REMOTE_CONTROL', command: 'SEND' });
     if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-    isSendingToCloud = true; sendBtn.innerHTML = `<span class="btn-text">Transferring...</span>`; sendBtn.style.opacity = '0.7';
+    isSendingToCloud = true; 
     mediaRecorder.stop(); 
   };
 
@@ -560,14 +617,14 @@ function injectNexusBot() {
     if (isLive) {
       wrapper.classList.add('recording');
       if (isPaused) {
-        wrapper.classList.remove('recording'); wrapper.classList.add('paused');
-        pauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg> <span class="btn-text">Resume</span>`;
+        wrapper.classList.remove('recording', 'speaker-mic', 'speaker-sys'); wrapper.classList.add('paused');
+        pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
         orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
         pauseBtn.classList.remove('btn-pause'); pauseBtn.classList.add('btn-resume');
         updateTimers('PAUSED');
       } else {
         wrapper.classList.remove('paused'); wrapper.classList.add('recording');
-        pauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> <span class="btn-text">Pause</span>`;
+        pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
         orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
         pauseBtn.classList.remove('btn-resume'); pauseBtn.classList.add('btn-pause');
         if (startTime) {
@@ -576,8 +633,8 @@ function injectNexusBot() {
         }
       }
     } else {
-      wrapper.classList.remove('recording', 'paused');
-      pauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> <span class="btn-text">Pause</span>`;
+      wrapper.classList.remove('recording', 'paused', 'speaker-mic', 'speaker-sys');
+      pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
       orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
       pauseBtn.classList.remove('btn-resume'); pauseBtn.classList.add('btn-pause');
       updateTimers("Ready");
@@ -596,13 +653,27 @@ function injectNexusBot() {
   });
 }
 
+// 🚀 FIX: Bulletproof Title Synchronization Heartbeat
 setInterval(() => {
-  chrome.storage.local.get(['spolyRecordingLive'], (res) => {
-    if (res.spolyRecordingLive) window.postMessage({ type: 'SPOLY_HEARTBEAT_LIVE' }, '*');
+  chrome.storage.local.get(['spolyRecordingLive', 'spolyRecordingTitle'], (res) => {
+    if (res.spolyRecordingLive) {
+        window.postMessage({ type: 'SPOLY_HEARTBEAT_LIVE', title: res.spolyRecordingTitle }, '*');
+    }
   });
 }, 1000);
 
+// 🚀 FIX: Master State Watcher (Ensures Youtube SPA injection and Dual Color Sync)
 chrome.storage.onChanged.addListener((changes) => {
+  
+  if (changes.spolyBotActive) {
+      if (changes.spolyBotActive.newValue) {
+          if (!document.getElementById('spoly-fab-root')) injectNexusBot();
+      } else {
+          const existingBot = document.getElementById('spoly-fab-root');
+          if (existingBot) { existingBot.remove(); hostElem = null; window.postMessage({ type: 'SPOLY_WIDGET_STATUS', status: false }, '*'); }
+      }
+  }
+  
   if (changes.spolyBotX || changes.spolyBotY) {
     chrome.storage.local.get(['spolyBotX', 'spolyBotY'], (res) => {
       let targetX = Math.max(0, Math.min(res.spolyBotX, window.innerWidth - 60));
@@ -611,9 +682,7 @@ chrome.storage.onChanged.addListener((changes) => {
     });
   }
   if (changes.spolyPanelOpen) {
-    chrome.storage.local.get(['spolyPanelOpen'], (res) => {
-      window.postMessage({ type: 'INTERNAL_SYNC_PANEL', isOpen: res.spolyPanelOpen }, '*');
-    });
+    window.postMessage({ type: 'INTERNAL_SYNC_PANEL', isOpen: changes.spolyPanelOpen.newValue }, '*');
   }
   if (changes.spolyMicMuted) {
     window.postMessage({ type: 'INTERNAL_SYNC_MUTE', isMuted: changes.spolyMicMuted.newValue }, '*');
@@ -623,22 +692,35 @@ chrome.storage.onChanged.addListener((changes) => {
       window.postMessage({ type: 'INTERNAL_SYNC_UI', isLive: res.spolyRecordingLive, isPaused: res.spolyRecordingPaused, startTime: res.spolyRecordingStartTime }, '*');
     });
   }
+  if (changes.spolySpeakerState) {
+    const state = changes.spolySpeakerState.newValue;
+    const wrapper = document.getElementById('spoly-fab-root')?.shadowRoot.getElementById('widget-wrapper');
+    if (wrapper && !isMasterTab) {
+        wrapper.classList.remove('speaker-mic', 'speaker-sys');
+        if (state === 'mic') wrapper.classList.add('speaker-mic');
+        if (state === 'sys') wrapper.classList.add('speaker-sys');
+    }
+  }
 });
 
 window.addEventListener('message', (e) => { 
   if (e.data.type === 'SPOLY_TOGGLE_WIDGET') {
-    const isDeployed = !!document.getElementById('spoly-fab-root');
-    chrome.runtime.sendMessage({ action: isDeployed ? 'GLOBAL_CLOSE' : 'GLOBAL_OPEN' });
+    chrome.storage.local.get(['spolyBotActive', 'spolyRecordingLive'], (res) => {
+        if (res.spolyRecordingLive && res.spolyBotActive) {
+            alert("⚠️ A recording is currently in progress!\n\nPlease use the 'Save' or 'Send' button inside the widget to stop the recording before removing the extension from the screen.");
+            return;
+        }
+        chrome.storage.local.set({ spolyBotActive: !res.spolyBotActive });
+    });
   }
 });
 
 chrome.runtime.onMessage.addListener((req) => { 
   if (req.action === 'GLOBAL_CLOSE') {
-    const existingBot = document.getElementById('spoly-fab-root');
-    if (existingBot) { existingBot.remove(); hostElem = null; window.postMessage({ type: 'SPOLY_WIDGET_STATUS', status: false }, '*'); }
+    chrome.storage.local.set({ spolyBotActive: false });
   }
   else if (req.action === 'GLOBAL_OPEN') { 
-    chrome.storage.local.set({ spolyPanelOpen: false }, () => { injectNexusBot(); });
+    chrome.storage.local.set({ spolyBotActive: true, spolyPanelOpen: false });
   }
   else if (req.action === 'COMMAND_TOGGLE_RECORD') {
     const start = document.getElementById('spoly-fab-root')?.shadowRoot.getElementById('startBtn');
@@ -649,18 +731,28 @@ chrome.runtime.onMessage.addListener((req) => {
     const pause = document.getElementById('spoly-fab-root')?.shadowRoot.getElementById('pauseBtn');
     if (pause) pause.click();
   }
-  else if (req.action === 'RECORDING_STARTED') { window.postMessage({ type: 'SPOLY_RECORDING_STARTED' }, '*'); }
+  else if (req.action === 'RECORDING_STARTED') { 
+    window.postMessage({ type: 'SPOLY_RECORDING_STARTED', title: req.title }, '*'); 
+  }
   else if (req.action === 'RECORDING_STOPPED') { window.postMessage({ type: 'SPOLY_RECORDING_STOPPED' }, '*'); }
   else if (req.action === 'RECEIVE_AUDIO') { window.postMessage({ type: 'SPOLY_UPLOAD_COMPLETE', audioUrl: req.audioData }, '*'); }
 });
 
 if (!window.location.href.startsWith('chrome')) { 
+  // Initial Boot
   chrome.storage.local.get(['spolyBotActive'], (result) => {
     if (result.spolyBotActive === true) {
-      setTimeout(() => { 
-        if (document.readyState === 'complete') injectNexusBot(); 
-        else window.addEventListener('load', injectNexusBot); 
-      }, 500);
+      if (document.readyState === 'complete') injectNexusBot(); 
+      else window.addEventListener('load', injectNexusBot); 
     }
   });
+
+  // Watcher for Single Page Apps (like YouTube)
+  setInterval(() => {
+    if (!document.getElementById('spoly-fab-root')) {
+      chrome.storage.local.get(['spolyBotActive'], (res) => {
+        if (res.spolyBotActive) injectNexusBot();
+      });
+    }
+  }, 1000);
 }

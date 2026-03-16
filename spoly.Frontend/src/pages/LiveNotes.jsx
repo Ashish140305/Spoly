@@ -37,7 +37,8 @@ const LiveAudioVisualizer = ({ stream, isRecording, colorClass }) => {
     let animationId;
 
     const draw = () => {
-      animationId = requestAnimationFrame(draw);
+      // 🚀 Use setTimeout here as well for React component resilience
+      animationId = setTimeout(() => requestAnimationFrame(draw), 50);
       analyser.getByteFrequencyData(dataArray);
       
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -53,7 +54,7 @@ const LiveAudioVisualizer = ({ stream, isRecording, colorClass }) => {
         let barHeight = (dataArray[dataIndex] / 255) * canvas.height;
         if (barHeight < 3) barHeight = 3; 
 
-        canvasCtx.fillStyle = colorClass === 'bg-amber-500' ? '#f59e0b' : '#3b82f6';
+        canvasCtx.fillStyle = colorClass === 'bg-amber-500' ? '#f59e0b' : colorClass === 'bg-purple-500' ? '#a855f7' : '#3b82f6';
         
         canvasCtx.beginPath();
         if(canvasCtx.roundRect) {
@@ -69,7 +70,7 @@ const LiveAudioVisualizer = ({ stream, isRecording, colorClass }) => {
     draw();
 
     return () => {
-      cancelAnimationFrame(animationId);
+      clearTimeout(animationId);
       audioCtx.close();
     };
   }, [stream, isRecording, colorClass]);
@@ -137,6 +138,9 @@ export default function LiveNotes() {
   const transcriptEndRef = useRef(null);
   const isAutoScrolling = useRef(true); 
   const [showResumeScroll, setShowResumeScroll] = useState(false);
+  
+  // 🚀 FIXED: Using a Ref so React's stale closure bug doesn't forget the title!
+  const capturedTitleRef = useRef("");
 
   const handleTranscriptScroll = () => {
     if (!transcriptContainerRef.current) return;
@@ -163,6 +167,7 @@ export default function LiveNotes() {
   const [processingType, setProcessingType] = useState("audio");
   const [isWidgetDeployed, setIsWidgetDeployed] = useState(false);
   const [isExtensionActive, setIsExtensionActive] = useState(false);
+  const [globalSpeakerColor, setGlobalSpeakerColor] = useState("bg-blue-500");
 
   const [youtubeUrl, setYoutubeUrl] = useState("");
 
@@ -180,6 +185,7 @@ export default function LiveNotes() {
   const timerRef = useRef(0);
   const simulationIndex = useRef(0);
   const stopTriggeredRef = useRef(false);
+  const isPausedRef = useRef(false); 
   const milestones = useRef({ summary: false, takeaways: false, decisions: false, actions: false });
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -209,10 +215,22 @@ export default function LiveNotes() {
 
   const forceStartRef = useRef(null);
   const stopLocalRef = useRef(null);
+  const pauseLocalRef = useRef(null);
 
   useEffect(() => {
     forceStartRef.current = forceStartSimulation;
     stopLocalRef.current = handleStopLocalRecording;
+    
+    pauseLocalRef.current = (isPaused) => {
+      isPausedRef.current = isPaused; 
+      if (isPaused) {
+         if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
+         setStatus("paused");
+      } else {
+         setStatus("recording");
+         if (!typingRef.current) { typingRef.current = setInterval(runSimulationTick, 100); }
+      }
+    };
   });
 
   useEffect(() => {
@@ -221,14 +239,29 @@ export default function LiveNotes() {
       window.history.replaceState({}, document.title, window.location.pathname);
       setTimeout(() => { if (forceStartRef.current) forceStartRef.current(); }, 500);
     }
+    
     const handleMessage = (e) => {
       const type = e.data?.type;
+      
+      // 🚀 CAPTURE TITLE FROM EVERY HEARTBEAT OR START SIGNAL
       if (type === 'SPOLY_RECORDING_STARTED' || type === 'SPOLY_HEARTBEAT_LIVE') {
+         // 🚀 FORCE GRAB TITLE FROM HEARTBEAT
+         if (e.data.title && e.data.title.trim() !== "" && e.data.title !== "Live Web Capture") {
+             capturedTitleRef.current = e.data.title;
+         }
+         if (e.data.speakerState) {
+             setGlobalSpeakerColor(e.data.speakerState === 'sys' ? 'bg-purple-500' : 'bg-blue-500');
+         }
          if (forceStartRef.current) forceStartRef.current();
-      } else if (type === 'SPOLY_RECORDING_STOPPED' || type === 'SPOLY_UPLOAD_COMPLETE') {
+      } 
+      else if (type === 'SPOLY_RECORDING_STOPPED' || type === 'SPOLY_UPLOAD_COMPLETE') {
          if (stopLocalRef.current) stopLocalRef.current();
+      } 
+      else if (type === 'INTERNAL_SYNC_UI') {
+         if (pauseLocalRef.current) pauseLocalRef.current(e.data.isPaused);
       }
     };
+    
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
@@ -272,13 +305,16 @@ export default function LiveNotes() {
   const finishProcessing = (customTitle = null, overrideAudioUrl = null) => {
     setStatus("complete"); setIsExtensionActive(false); setIsWidgetDeployed(false); setAudioStream(null); setShowResumeScroll(false); isAutoScrolling.current = true;
     showToast(processingType === "image" ? "Whiteboard Converted Successfully!" : `Processed in ${outputLanguage}!`);
-    let noteTitle = customTitle || (fileName ? `Processed File: ${fileName}` : `Live Session ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
-    if (activeAiTemplate) noteTitle = `[${activeAiTemplate.name}] ${noteTitle}`;
+    
+    // 🚀 AUTO TITLING: Safely accesses the physical reference
+    let finalTitle = capturedTitleRef.current || `Live Session ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    if (customTitle && customTitle !== "Live Capture") finalTitle = customTitle; 
+    if (activeAiTemplate) finalTitle = `[${activeAiTemplate.name}] ${finalTitle}`;
     
     const finalAudioUrl = overrideAudioUrl || currentAudioUrl;
 
     const newNote = {
-      id: Date.now(), title: noteTitle, folderId: "all", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      id: Date.now(), title: finalTitle, folderId: "all", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       duration: formatTime(timerRef.current), items: actionItems.length, tags: [outputLanguage, activeAiTemplate?.category || "AI"],
       summary: meetingNotes.summary || "Summary successfully generated from context.", takeaways: meetingNotes.takeaways || "• Key points extracted seamlessly.",
       decisions: meetingNotes.decisions, graph: editableMermaid, 
@@ -321,7 +357,15 @@ export default function LiveNotes() {
   };
 
   const runSimulationTick = () => {
-    if (stopTriggeredRef.current) { clearInterval(typingRef.current); return; }
+    if (isPausedRef.current) {
+       if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
+       return; 
+    }
+    if (stopTriggeredRef.current) { 
+       if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
+       return; 
+    }
+    
     let i = simulationIndex.current; i += Math.floor(Math.random() * 5) + 2;
     if (i > fullTranscript.length) i = fullTranscript.length;
     simulationIndex.current = i; setTranscript(fullTranscript.slice(0, i));
@@ -349,11 +393,17 @@ export default function LiveNotes() {
 
   const forceStartSimulation = () => {
     if (status === "recording" || status === "processing" || status === "paused") return;
+    
     setActiveTab("workspace"); setIsExtensionActive(true); setStatus("recording"); stopTriggeredRef.current = false; setProcessingType("audio");
+    
+    isPausedRef.current = false; 
+    
     setTranscript(""); setTimer(0); timerRef.current = 0; simulationIndex.current = 0; milestones.current = { summary: false, takeaways: false, decisions: false, actions: false };
     setMeetingNotes({ summary: "", takeaways: "", decisions: "" }); setActionItems([]); setEditableMermaid(""); setCurrentAudioUrl(null);
     setShowResumeScroll(false); isAutoScrolling.current = true;
-    if (typingRef.current) clearInterval(typingRef.current); typingRef.current = setInterval(runSimulationTick, 100);
+    
+    if (typingRef.current) clearInterval(typingRef.current); 
+    typingRef.current = setInterval(runSimulationTick, 100);
   };
 
   const handleStartLocalRecording = async () => {
@@ -367,11 +417,15 @@ export default function LiveNotes() {
     }
 
     setActiveTab("workspace"); setIsExtensionActive(false); setStatus("recording"); stopTriggeredRef.current = false; setProcessingType("audio");
+    
+    isPausedRef.current = false;
+    
     setTranscript(""); setTimer(0); timerRef.current = 0; simulationIndex.current = 0; milestones.current = { summary: false, takeaways: false, decisions: false, actions: false };
     setMeetingNotes({ summary: "", takeaways: "", decisions: "" }); setActionItems([]); setEditableMermaid(""); setCurrentAudioUrl(null);
     setShowResumeScroll(false); isAutoScrolling.current = true;
 
-    if (typingRef.current) clearInterval(typingRef.current); typingRef.current = setInterval(runSimulationTick, 100);
+    if (typingRef.current) clearInterval(typingRef.current); 
+    typingRef.current = setInterval(runSimulationTick, 100);
 
     if (stream) {
       setAudioStream(stream);
@@ -413,14 +467,23 @@ export default function LiveNotes() {
   };
 
   const toggleLocalPause = () => {
-    if (status === "recording") { if (localMediaRecorderRef.current?.state === "recording") localMediaRecorderRef.current.pause(); setStatus("paused"); clearInterval(typingRef.current); } 
-    else if (status === "paused") { if (localMediaRecorderRef.current?.state === "paused") localMediaRecorderRef.current.resume(); setStatus("recording"); typingRef.current = setInterval(runSimulationTick, 100); }
+    if (status === "recording") { 
+      if (localMediaRecorderRef.current?.state === "recording") localMediaRecorderRef.current.pause(); 
+      isPausedRef.current = true; 
+      setStatus("paused"); 
+      if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
+    } else if (status === "paused") { 
+      if (localMediaRecorderRef.current?.state === "paused") localMediaRecorderRef.current.resume(); 
+      isPausedRef.current = false; 
+      setStatus("recording"); 
+      if (!typingRef.current) typingRef.current = setInterval(runSimulationTick, 100); 
+    }
   };
 
   const handleStopLocalRecording = () => {
     if (stopTriggeredRef.current) return;
     stopTriggeredRef.current = true; 
-    if (typingRef.current) clearInterval(typingRef.current); 
+    if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
     setStatus("processing");
     setAudioStream(null);
     
@@ -516,6 +579,7 @@ export default function LiveNotes() {
     setIsExtensionActive(false); setIsWidgetDeployed(false); setAudioStream(null); if (fileInputRef.current) fileInputRef.current.value = ""; 
     setActiveTab("workspace"); setActionItems([]); setContextFiles([]); setEditableMermaid("");
     setContextTheme(null); setShowResumeScroll(false); isAutoScrolling.current = true;
+    capturedTitleRef.current = ""; // Reset Title
   };
 
   const triggerRemix = (template) => { 
@@ -567,7 +631,7 @@ export default function LiveNotes() {
         <header className={`px-8 py-6 flex justify-between items-center border-b sticky top-0 z-30 transition-colors ${isDarkMode ? "bg-[#0b0f19]/80 backdrop-blur-md border-[#232a3b]" : "bg-white/30 backdrop-blur-md border-white/40"}`}>
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight capitalize">{selectedNote ? selectedNote.title : activeTab === "workspace" ? "Active Workspace" : activeTab}</h1>
-            <p className={`text-sm font-medium ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{selectedNote ? `Saved on ${selectedNote.date}` : new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+            <p className={`text-sm font-medium mt-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>{selectedNote ? `Saved on ${selectedNote.date}` : new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
           </div>
           
           <div className="flex items-center gap-4">
@@ -771,7 +835,7 @@ export default function LiveNotes() {
                     <div className={`xl:col-span-4 flex flex-col h-full shadow-sm rounded-[2rem] border overflow-hidden transition-colors ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D]" : "bg-white border-slate-200"}`}>
                       
                       <div className={`relative p-5 flex items-center justify-between gap-4 border-b ${isDarkMode ? "bg-gradient-to-r from-[#0b0f19] to-[#131722] border-[#2A2F3D]" : "bg-gradient-to-r from-slate-50 to-white border-slate-200"}`}>
-                         <div className={`absolute left-0 w-32 h-full blur-[40px] opacity-20 pointer-events-none transition-colors duration-1000 ${status === "recording" ? "bg-blue-500" : status === "paused" ? "bg-amber-500" : ""}`}></div>
+                         <div className={`absolute left-0 w-32 h-full blur-[40px] opacity-20 pointer-events-none transition-colors duration-1000 ${status === "recording" ? globalSpeakerColor : status === "paused" ? "bg-amber-500" : ""}`}></div>
 
                          <div className="flex items-center gap-3 shrink-0 z-10">
                            <div className={`w-3 h-3 rounded-full ${status === "paused" ? "bg-amber-500" : "bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"}`}></div>
@@ -781,7 +845,7 @@ export default function LiveNotes() {
                          </div>
 
                          <div className="flex-1 hidden sm:flex justify-center items-center px-2 h-8 overflow-hidden z-10 shrink-0">
-                            <LiveAudioVisualizer stream={audioStream} isRecording={status === 'recording'} colorClass={status === 'paused' ? 'bg-amber-500' : 'bg-blue-500'} />
+                            <LiveAudioVisualizer stream={audioStream} isRecording={status === 'recording'} colorClass={status === 'paused' ? 'bg-amber-500' : globalSpeakerColor} />
                          </div>
                          
                          {!isExtensionActive && (status === "recording" || status === "paused") && (
@@ -917,7 +981,7 @@ export default function LiveNotes() {
                   </motion.div>
                 )}
 
-                {/* 🌟 FIX: OVERHAULED SUCCESS DASHBOARD */}
+                {/* 🌟 FIX: REMOVED OVERFLOW-HIDDEN FROM PARENT TO FIX CLIPPING */}
                 {status === "complete" && (
                   <motion.div key="success-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="max-w-5xl mx-auto space-y-8">
                     
@@ -932,9 +996,10 @@ export default function LiveNotes() {
                       ) : (
                         <motion.div key="success-dashboard" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="space-y-8">
                           
-                          <div className={`rounded-[2.5rem] relative overflow-hidden border ${isDarkMode ? "bg-[#0b0f19] border-emerald-500/20 shadow-[0_20px_60px_rgba(16,185,129,0.1)]" : "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-2xl border-transparent"}`}>
+                          {/* 🌟 FIX: overflow-hidden moved to the background div only */}
+                          <div className={`rounded-[2.5rem] relative border ${isDarkMode ? "bg-[#0b0f19] border-emerald-500/20 shadow-[0_20px_60px_rgba(16,185,129,0.1)]" : "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-2xl border-transparent"}`}>
                             {/* Glowing Orbs for Premium Dark Mode */}
-                            <div className="absolute inset-0 pointer-events-none">
+                            <div className="absolute inset-0 overflow-hidden rounded-[2.5rem] pointer-events-none">
                                <div className={`absolute -top-24 -right-24 w-96 h-96 blur-[100px] rounded-full ${isDarkMode ? "bg-emerald-600/15" : "bg-white/20"}`}></div>
                                <div className={`absolute -bottom-24 -left-24 w-96 h-96 blur-[100px] rounded-full ${isDarkMode ? "bg-teal-600/15" : "bg-white/0"}`}></div>
                             </div>
@@ -1009,7 +1074,6 @@ export default function LiveNotes() {
                             </div>
                           </div>
 
-                          {/* 🌟 FIX: Gorgeous Glowing Start Recording Button */}
                           <div className="flex justify-center mt-12 pb-6">
                              <button onClick={handleReset} className={`group relative flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isDarkMode ? "bg-slate-800 text-white shadow-[0_0_30px_rgba(37,99,235,0.2)] hover:shadow-[0_0_50px_rgba(37,99,235,0.4)] dark:focus:ring-offset-[#0b0f19]" : "bg-white text-slate-800 shadow-xl border border-slate-200 hover:border-blue-300 hover:shadow-[0_20px_40px_rgba(37,99,235,0.15)]"}`}>
                                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r pointer-events-none ${isDarkMode ? "from-blue-600 to-indigo-600" : "from-blue-50 to-indigo-50"}`}></div>
