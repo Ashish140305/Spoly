@@ -24,7 +24,9 @@ targets = []
 
 for item in data:
 
-    prompt = "Convert this lecture text into structured notes and a mermaid diagram:\n"
+    prompt = """Extract ONLY important technical concepts from the lecture. Ignore filler speech. Generate concise notes and a Mermaid diagram only if a concept exists.   
+    Lecture:
+    """
     inp = prompt + item["input_text"]
 
     out = item["notes"] + "\n<MERMAID>\n" + item["mermaid"]
