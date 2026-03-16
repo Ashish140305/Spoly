@@ -1,25 +1,58 @@
 import React, { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 
-mermaid.initialize({
-  startOnLoad: true,
-  theme: 'default',
-  securityLevel: 'loose',
-});
-
-const MermaidDiagram = ({ chart }) => {
-  const ref = useRef(null);
+export default function MermaidDiagram({ chart, isDarkMode }) {
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    if (ref.current && chart) {
-      mermaid.contentLoaded();
-      mermaid.render(`mermaid-svg-${Date.now()}`, chart).then((result) => {
-        ref.current.innerHTML = result.svg;
-      });
-    }
-  }, [chart]);
+    if (!chart) return;
 
-  return <div className="flex justify-center my-4" ref={ref} />;
-};
+    // Reset mermaid to avoid configuration collisions during re-renders
+    mermaid.mermaidAPI.reset();
 
-export default MermaidDiagram;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: isDarkMode ? 'base' : 'default',
+      themeVariables: isDarkMode ? {
+        primaryColor: '#1e293b',       // Slate-800 for nodes
+        primaryTextColor: '#f8fafc',   // Crisp white text
+        primaryBorderColor: '#3b82f6', // Blue-500 borders
+        lineColor: '#64748b',          // Slate-500 arrows/lines
+        secondaryColor: '#0f172a',     // Slate-900 backgrounds
+        tertiaryColor: '#1e293b',      // Slate-800 accents
+        fontFamily: "'Plus Jakarta Sans', sans-serif" // 🌟 FIX: Explicit font declaration
+      } : {
+        fontFamily: "'Plus Jakarta Sans', sans-serif" // 🌟 FIX: Explicit font declaration
+      },
+      // 🌟 FIX: Force extra padding inside every node so text never clips
+      flowchart: {
+        htmlLabels: true,
+        padding: 20 
+      },
+      securityLevel: 'loose',
+    });
+
+    const renderDiagram = async () => {
+      if (containerRef.current) {
+        try {
+          const uniqueId = `mermaid-chart-${Math.random().toString(36).substr(2, 9)}`;
+          const { svg } = await mermaid.render(uniqueId, chart);
+          containerRef.current.innerHTML = svg;
+        } catch (error) {
+          console.error("Mermaid rendering failed:", error);
+          containerRef.current.innerHTML = `<p class="text-red-500 text-sm font-bold">Failed to render diagram. Check syntax.</p>`;
+        }
+      }
+    };
+
+    renderDiagram();
+    
+  }, [chart, isDarkMode]); 
+
+  return (
+    <div 
+      ref={containerRef} 
+      className="w-full h-full flex justify-center items-center overflow-x-auto custom-scrollbar p-4"
+    />
+  );
+}
