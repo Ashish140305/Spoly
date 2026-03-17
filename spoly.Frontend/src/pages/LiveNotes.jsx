@@ -184,8 +184,11 @@ export default function LiveNotes() {
   const uploadRef = useRef(null);
   const timerRef = useRef(0);
   const simulationIndex = useRef(0);
+  
+  // 🚀 RACE CONDITION SAFEGUARDS
   const stopTriggeredRef = useRef(false);
   const isPausedRef = useRef(false); 
+  
   const milestones = useRef({ summary: false, takeaways: false, decisions: false, actions: false });
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -222,6 +225,9 @@ export default function LiveNotes() {
     stopLocalRef.current = handleStopLocalRecording;
     
     pauseLocalRef.current = (isPaused) => {
+      // 🚀 ABSOLUTE LOCKDOWN: Ignore unpause requests if we already triggered a stop!
+      if (stopTriggeredRef.current) return;
+
       isPausedRef.current = isPaused; 
       if (isPaused) {
          if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
@@ -243,7 +249,6 @@ export default function LiveNotes() {
     const handleMessage = (e) => {
       const type = e.data?.type;
       
-      // 🚀 CAPTURE TITLE FROM EVERY HEARTBEAT OR START SIGNAL
       if (type === 'SPOLY_RECORDING_STARTED' || type === 'SPOLY_HEARTBEAT_LIVE') {
          // 🚀 FORCE GRAB TITLE FROM HEARTBEAT
          if (e.data.title && e.data.title.trim() !== "" && e.data.title !== "Live Web Capture") {
@@ -252,13 +257,18 @@ export default function LiveNotes() {
          if (e.data.speakerState) {
              setGlobalSpeakerColor(e.data.speakerState === 'sys' ? 'bg-purple-500' : 'bg-blue-500');
          }
-         if (forceStartRef.current) forceStartRef.current();
+         if (forceStartRef.current) forceStartRef.current(e.data.title);
       } 
       else if (type === 'SPOLY_RECORDING_STOPPED' || type === 'SPOLY_UPLOAD_COMPLETE') {
          if (stopLocalRef.current) stopLocalRef.current();
       } 
       else if (type === 'INTERNAL_SYNC_UI') {
-         if (pauseLocalRef.current) pauseLocalRef.current(e.data.isPaused);
+         // 🚀 SAFEGUARD: If extension broadcasts that it's no longer live, forcefully stop
+         if (e.data.isLive === false) {
+             if (stopLocalRef.current) stopLocalRef.current();
+         } else {
+             if (pauseLocalRef.current) pauseLocalRef.current(e.data.isPaused);
+         }
       }
     };
     
@@ -357,6 +367,7 @@ export default function LiveNotes() {
   };
 
   const runSimulationTick = () => {
+    // 🚀 PHYSICAL BLOCK: Aborts instantly if pause state or stop state is active
     if (isPausedRef.current) {
        if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
        return; 
@@ -391,8 +402,13 @@ export default function LiveNotes() {
     }
   };
 
-  const forceStartSimulation = () => {
+  const forceStartSimulation = (scrapedTitle) => {
+    // 🚀 Prevent stray heartbeats from restarting the interval after a stop
+    if (stopTriggeredRef.current) return; 
     if (status === "recording" || status === "processing" || status === "paused") return;
+    
+    if (scrapedTitle && typeof scrapedTitle === 'string') setCapturedTitle(scrapedTitle);
+    else setCapturedTitle("");
     
     setActiveTab("workspace"); setIsExtensionActive(true); setStatus("recording"); stopTriggeredRef.current = false; setProcessingType("audio");
     
@@ -482,7 +498,11 @@ export default function LiveNotes() {
 
   const handleStopLocalRecording = () => {
     if (stopTriggeredRef.current) return;
+    
+    // 🚀 ABSOLUTE LOCKDOWN: Instantly kill the typing intervals and prevent them from ever restarting
     stopTriggeredRef.current = true; 
+    isPausedRef.current = true; 
+    
     if (typingRef.current) { clearInterval(typingRef.current); typingRef.current = null; }
     setStatus("processing");
     setAudioStream(null);
@@ -981,7 +1001,7 @@ export default function LiveNotes() {
                   </motion.div>
                 )}
 
-                {/* 🌟 FIX: REMOVED OVERFLOW-HIDDEN FROM PARENT TO FIX CLIPPING */}
+                {/* 🌟 FIX: overflow-hidden removed from the outer parent div here */}
                 {status === "complete" && (
                   <motion.div key="success-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="max-w-5xl mx-auto space-y-8">
                     
@@ -996,7 +1016,7 @@ export default function LiveNotes() {
                       ) : (
                         <motion.div key="success-dashboard" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="space-y-8">
                           
-                          {/* 🌟 FIX: overflow-hidden moved to the background div only */}
+                          {/* 🌟 FIX: overflow-hidden added to the absolute background div *only*, removed from the card */}
                           <div className={`rounded-[2.5rem] relative border ${isDarkMode ? "bg-[#0b0f19] border-emerald-500/20 shadow-[0_20px_60px_rgba(16,185,129,0.1)]" : "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-2xl border-transparent"}`}>
                             {/* Glowing Orbs for Premium Dark Mode */}
                             <div className="absolute inset-0 overflow-hidden rounded-[2.5rem] pointer-events-none">
