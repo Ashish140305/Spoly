@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Spoly - Meeting Recorder",
+  "version": "1.0",
+  "description": "Capture tab audio and generate smart meeting notes seamlessly.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "commands": {
+    "toggle-record": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Start or Stop Recording"
+    },
+    "toggle-pause": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Pause or Resume Recording"
+    }
+  },
+  "action": {
+    "default_title": "Toggle Spoly Bot"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# HuggingFace cache
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# Environment variables
+.env
+
+# Model files (if downloaded locally)
+models/
+*.bin
+*.pt
+*.safetensors
+
+pip freeze > requirements.txt
