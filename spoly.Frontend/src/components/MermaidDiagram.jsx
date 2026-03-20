@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import mermaid from 'mermaid';
+import React, { useEffect, useRef } from "react";
+import mermaid from "mermaid";
 
 export default function MermaidDiagram({ chart, isDarkMode }) {
   const containerRef = useRef(null);
@@ -12,24 +12,26 @@ export default function MermaidDiagram({ chart, isDarkMode }) {
 
     mermaid.initialize({
       startOnLoad: false,
-      theme: isDarkMode ? 'base' : 'default',
-      themeVariables: isDarkMode ? {
-        primaryColor: '#1e293b',       // Slate-800 for nodes
-        primaryTextColor: '#f8fafc',   // Crisp white text
-        primaryBorderColor: '#3b82f6', // Blue-500 borders
-        lineColor: '#64748b',          // Slate-500 arrows/lines
-        secondaryColor: '#0f172a',     // Slate-900 backgrounds
-        tertiaryColor: '#1e293b',      // Slate-800 accents
-        fontFamily: "'Plus Jakarta Sans', sans-serif" // 🌟 FIX: Explicit font declaration
-      } : {
-        fontFamily: "'Plus Jakarta Sans', sans-serif" // 🌟 FIX: Explicit font declaration
-      },
+      theme: isDarkMode ? "base" : "default",
+      themeVariables: isDarkMode
+        ? {
+            primaryColor: "#1e293b", // Slate-800 for nodes
+            primaryTextColor: "#f8fafc", // Crisp white text
+            primaryBorderColor: "#3b82f6", // Blue-500 borders
+            lineColor: "#64748b", // Slate-500 arrows/lines
+            secondaryColor: "#0f172a", // Slate-900 backgrounds
+            tertiaryColor: "#1e293b", // Slate-800 accents
+            fontFamily: "'Plus Jakarta Sans', sans-serif", // 🌟 FIX: Explicit font declaration
+          }
+        : {
+            fontFamily: "'Plus Jakarta Sans', sans-serif", // 🌟 FIX: Explicit font declaration
+          },
       // 🌟 FIX: Force extra padding inside every node so text never clips
       flowchart: {
         htmlLabels: true,
-        padding: 20 
+        padding: 20,
       },
-      securityLevel: 'loose',
+      securityLevel: "loose",
     });
 
     const renderDiagram = async () => {
@@ -46,12 +48,11 @@ export default function MermaidDiagram({ chart, isDarkMode }) {
     };
 
     renderDiagram();
-    
-  }, [chart, isDarkMode]); 
+  }, [chart, isDarkMode]);
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className="w-full h-full flex justify-center items-center overflow-x-auto custom-scrollbar p-4"
     />
   );
