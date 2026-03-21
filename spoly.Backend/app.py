@@ -6,6 +6,8 @@ load_dotenv()
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+# 🚀 FIX: Import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from svix.webhooks import Webhook, WebhookVerificationError
 import mysql.connector
 
@@ -13,6 +15,15 @@ from routes import notes
 from utils.config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT, CLERK_SECRET
 
 app = FastAPI()
+
+# 🚀 FIX: Add CORS Middleware so your React frontend is allowed to talk to the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins (localhost:5173, etc.)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (POST, GET, OPTIONS, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
 # ---------------- DB CONFIG ----------------
 

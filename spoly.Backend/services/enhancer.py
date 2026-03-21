@@ -66,7 +66,20 @@ def enhance_diagram(notes):
 
     url = "https://api.groq.com/openai/v1/chat/completions"
 
-    prompt = f"Convert this into a detailed Mermaid diagram:\n{notes}"
+    # 🚀 FIX: Upgraded prompt with STRICT MERMAID RULES to prevent hallucinations
+    prompt = f"""Convert this into a detailed Mermaid diagram.
+
+STRICT MERMAID SYNTAX RULES:
+1. You MUST use exactly "graph TD" or "flowchart TD" to start the diagram.
+2. DO NOT use the "subgraph" command.
+3. DO NOT use "note", "note right of", or "note left of". Notes are illegal in flowcharts.
+4. Every node and connection MUST be on its own separate line.
+5. Do not use special characters or parentheses inside node names unless enclosed in quotes (e.g., A["Node Name (Detail)"]).
+6. OUTPUT ONLY THE RAW MERMAID CODE. Do not include ```mermaid backticks, and do not include any conversational text.
+
+Input Notes:
+{notes}
+"""
 
     try:
         res = requests.post(
