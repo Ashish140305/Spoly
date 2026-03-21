@@ -1,250 +1,164 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Headphones,
-  AlignLeft,
-  Copy,
-  Workflow,
-  DownloadCloud,
-  Edit3,
-  Eye,
-} from "lucide-react";
+import { AlignLeft, Workflow, Download, Clock, Calendar, CheckSquare, Layers } from "lucide-react";
 import MermaidDiagram from "./MermaidDiagram";
 
-export default function NoteDetailView({
-  isDarkMode,
-  selectedNote,
-  exportFormat,
-  showToast,
-}) {
-  const [isEditingGraph, setIsEditingGraph] = useState(false);
-  const defaultGraph =
-    "graph TD;\n  A[Start Recording]-->B[AI Listens];\n  B-->C[Generate Summary];\n  C-->D[Extract Diagram];";
-  const [editedGraph, setEditedGraph] = useState(
-    selectedNote?.graph || defaultGraph,
+const Flashcard = ({ front, back, isDarkMode }) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+  return (
+    <div 
+      className="perspective-1000 w-full h-64 cursor-pointer group"
+      onClick={() => setIsFlipped(!isFlipped)}
+    >
+      <motion.div
+        className="w-full h-full relative preserve-3d transition-all duration-500 shadow-sm group-hover:shadow-md rounded-2xl"
+        animate={{ rotateY: isFlipped ? 180 : 0 }}
+      >
+        <div className={`absolute inset-0 backface-hidden flex flex-col items-center justify-center p-6 text-center rounded-2xl border-2 ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D] text-white" : "bg-white border-slate-200 text-slate-800"}`}>
+          <div className={`absolute top-4 left-4 text-xs font-bold px-2 py-1 rounded-md ${isDarkMode ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}>Q</div>
+          <h3 className="text-xl font-bold">{front}</h3>
+          <p className={`absolute bottom-4 text-xs font-medium opacity-50 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Click to flip</p>
+        </div>
+        <div 
+          className={`absolute inset-0 backface-hidden flex flex-col items-center justify-center p-6 text-center rounded-2xl border-2 ${isDarkMode ? "bg-indigo-900/20 border-indigo-500/30 text-indigo-100" : "bg-indigo-50 border-indigo-200 text-indigo-900"}`}
+          style={{ transform: "rotateY(180deg)" }}
+        >
+          <div className={`absolute top-4 left-4 text-xs font-bold px-2 py-1 rounded-md ${isDarkMode ? "bg-indigo-500/40 text-white" : "bg-indigo-200 text-indigo-800"}`}>A</div>
+          <p className="text-lg font-medium">{back}</p>
+        </div>
+      </motion.div>
+    </div>
   );
+};
 
-  // Sync state if the user clicks a different note
-  useEffect(() => {
-    setEditedGraph(selectedNote?.graph || defaultGraph);
-    setIsEditingGraph(false);
-  }, [selectedNote]);
+const formatGeneratedNotes = (text, isDarkMode) => {
+  if (!text) return "No notes available.";
 
-  const handleDownloadAudio = () => {
-    if (!selectedNote?.audioUrl) {
-      showToast("No audio file available for this note.");
-      return;
+  return text.split("\n").map((line, index) => {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) return <div key={index} className="h-3"></div>;
+
+    const formatBold = (str) => {
+      const parts = str.split(/(\*\*.*?\*\*)/g);
+      return parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={i} className={`font-bold ${isDarkMode ? "text-white" : "text-slate-900"}`}>{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      });
+    };
+
+    if (trimmedLine.startsWith("📌") || trimmedLine.startsWith("#")) {
+      const titleText = trimmedLine.replace(/^[📌#]+\s*/, "");
+      return <h3 key={index} className={`text-xl font-extrabold mt-6 mb-3 border-b pb-2 ${isDarkMode ? "text-blue-400 border-blue-500/20" : "text-blue-600 border-blue-200"}`}>{titleText}</h3>;
     }
 
-    const a = document.createElement("a");
-    a.style.display = "none";
-    a.href = selectedNote.audioUrl;
+    if (trimmedLine.startsWith("•") || trimmedLine.startsWith("-") || trimmedLine.startsWith("*")) {
+      const bulletText = trimmedLine.replace(/^[•\-*]\s*/, "");
+      return (
+        <div key={index} className="flex items-start gap-3 mb-2 ml-1">
+          <div className={`mt-2 w-1.5 h-1.5 rounded-full shrink-0 ${isDarkMode ? "bg-blue-400" : "bg-blue-500"}`}></div>
+          <div className="flex-1 leading-relaxed">{formatBold(bulletText)}</div>
+        </div>
+      );
+    }
 
-    const safeTitle = selectedNote.title
-      ? selectedNote.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()
-      : "audio";
-    a.download = `Spoly_Audio_${safeTitle}_${Date.now()}.webm`;
+    return <p key={index} className="mb-3 leading-relaxed">{formatBold(trimmedLine)}</p>;
+  });
+};
 
-    document.body.appendChild(a);
-    a.click();
+export default function NoteDetailView({ isDarkMode, selectedNote, exportFormat, showToast }) {
+  const [activeTab, setActiveTab] = useState("notes");
 
-    setTimeout(() => {
-      document.body.removeChild(a);
-    }, 100);
-
-    showToast("Download triggered successfully!");
+  const handleExport = () => {
+    showToast(`Exported as ${exportFormat.toUpperCase()}`);
   };
 
+  if (!selectedNote) return null;
+
+  let validDiagrams = [];
+  if (selectedNote.graphs && Array.isArray(selectedNote.graphs) && selectedNote.graphs.length > 0) {
+    validDiagrams = selectedNote.graphs;
+  } else if (selectedNote.graph && typeof selectedNote.graph === "string" && selectedNote.graph !== "API FAILED") {
+    validDiagrams = [{ title: "Saved Flowchart", code: selectedNote.graph }];
+  }
+
+  const hasFlashcards = selectedNote.flashcards && selectedNote.flashcards.length > 0;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="space-y-8 pb-32"
-    >
-      {/* 🌟 AUDIO PLAYER ALWAYS RENDERED */}
-      <div
-        className={`rounded-[2rem] p-6 sm:p-8 flex flex-col sm:flex-row items-start gap-6 border shadow-sm transition-colors ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D] text-white" : "bg-white border-slate-200 text-slate-900"}`}
-      >
-        <div
-          className={`w-14 h-14 rounded-2xl shrink-0 flex items-center justify-center transition-colors shadow-inner border ${isDarkMode ? "bg-[#131722] text-blue-400 border-[#2A2F3D]" : "bg-blue-50 text-blue-600 border-blue-100"}`}
-        >
-          <Headphones size={28} />
+    <div className="space-y-6 max-w-6xl mx-auto pb-20">
+      <div className={`p-6 rounded-2xl border shadow-sm flex flex-wrap gap-6 items-center justify-between ${isDarkMode ? "bg-[#131722] border-[#2A2F3D]" : "bg-white border-slate-200"}`}>
+        <div className="flex gap-6">
+          <div className={`flex items-center gap-2 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+            <Calendar size={16} className="text-blue-500" />
+            <span className="font-medium text-sm">{selectedNote.date}</span>
+          </div>
+          <div className={`flex items-center gap-2 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+            <Clock size={16} className="text-amber-500" />
+            <span className="font-medium text-sm">{selectedNote.duration || "00:00"} Duration</span>
+          </div>
         </div>
 
-        <div className="flex-1 w-full min-w-0">
-          <h4
-            className={`font-extrabold text-xl mb-4 tracking-tight ${isDarkMode ? "text-slate-100" : "text-slate-800"}`}
+        <button onClick={handleExport} className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all shadow-sm ${isDarkMode ? "bg-[#1a1f2e] hover:bg-[#2A2F3D] text-slate-200 border border-[#2A2F3D]" : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200"}`}>
+          <Download size={16} /> Export Notes
+        </button>
+      </div>
+
+      <div className="flex justify-center mb-2">
+        <div className={`inline-flex rounded-full p-1 border shadow-sm ${isDarkMode ? "bg-[#131722] border-[#2A2F3D]" : "bg-white border-slate-200"}`}>
+          <button 
+            onClick={() => setActiveTab("notes")}
+            className={`flex items-center gap-2 px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === "notes" ? (isDarkMode ? "bg-blue-600 text-white shadow-md" : "bg-blue-500 text-white shadow-md") : (isDarkMode ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-800")}`}
           >
-            Original Audio Recording
-          </h4>
-
-          <div className="flex flex-col lg:flex-row items-center gap-4 w-full">
-            <div
-              className={`flex-1 w-full rounded-full p-1.5 border shadow-inner flex items-center ${isDarkMode ? "bg-[#0b0f19] border-[#2A2F3D]" : "bg-slate-50 border-slate-200"}`}
+            <AlignLeft size={16} /> Structured Notes
+          </button>
+          
+          {validDiagrams.length > 0 && (
+            <button 
+              onClick={() => setActiveTab("diagram")}
+              className={`flex items-center gap-2 px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === "diagram" ? (isDarkMode ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-500 text-white shadow-md") : (isDarkMode ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-800")}`}
             >
-              <audio
-                controls
-                className="w-full h-11 outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full"
-                src={selectedNote?.audioUrl || ""}
-              >
-                Your browser does not support the audio element.
-              </audio>
-            </div>
-
-            <button
-              onClick={handleDownloadAudio}
-              className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95 shadow-md shrink-0 w-full lg:w-auto focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isDarkMode ? "bg-blue-600 hover:bg-blue-500 text-white dark:focus:ring-offset-[#1a1f2e]" : "bg-blue-600 hover:bg-blue-500 text-white focus:ring-offset-white"}`}
-            >
-              <DownloadCloud size={18} /> Download Audio
+              <Workflow size={16} /> Multi-Diagram View
             </button>
-          </div>
+          )}
+
+          {hasFlashcards && (
+            <button 
+              onClick={() => setActiveTab("flashcards")}
+              className={`flex items-center gap-2 px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === "flashcards" ? (isDarkMode ? "bg-indigo-600 text-white shadow-md" : "bg-indigo-500 text-white shadow-md") : (isDarkMode ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-800")}`}
+            >
+              <Layers size={16} /> Practice Flashcards
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid xl:grid-cols-2 gap-8">
-        {/* SUMMARY SECTION - Fixed 650px Min Height */}
-        <div
-          className={`shadow-lg rounded-[2rem] p-8 border flex flex-col transition-all duration-500 ease-in-out min-h-[650px] ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D]" : "bg-white border-slate-200"}`}
-        >
-          <div
-            className={`flex items-center justify-between gap-2 mb-6 border-b pb-4 ${isDarkMode ? "border-[#2A2F3D]" : "border-slate-100"}`}
-          >
-            <h3
-              className={`font-bold text-xl tracking-tight flex items-center gap-2 ${isDarkMode ? "text-indigo-400" : "text-indigo-700"}`}
-            >
-              <AlignLeft size={20} /> AI Summary & Notes
-            </h3>
-            <button
-              onClick={() => {
-                const textToCopy =
-                  exportFormat === "markdown"
-                    ? `## Summary\n${selectedNote?.summary}\n\n## Takeaways\n${selectedNote?.takeaways}\n\n## Decisions\n${selectedNote?.decisions}`
-                    : `${selectedNote?.summary}\n\n${selectedNote?.takeaways}\n\n${selectedNote?.decisions}`;
-                navigator.clipboard.writeText(textToCopy);
-                showToast("Notes copied to clipboard!");
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-colors border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${isDarkMode ? "bg-[#131722] hover:bg-[#232a3b] text-slate-300 border-[#2A2F3D]" : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"}`}
-            >
-              <Copy size={14} /> Copy All
-            </button>
+      <div className={`rounded-[2rem] p-8 border shadow-sm flex flex-col min-h-[60vh] w-full transition-all duration-500 ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D]" : "bg-white border-slate-200"}`}>
+        {activeTab === "notes" ? (
+          <div className={`text-sm md:text-base leading-relaxed overflow-y-auto custom-scrollbar pr-4 flex-1 w-full ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>
+            {formatGeneratedNotes(selectedNote.summary, isDarkMode)}
           </div>
-
-          <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2">
-            <div>
-              <h4
-                className={`font-bold mb-2 tracking-tight ${isDarkMode ? "text-slate-200" : "text-slate-800"}`}
-              >
-                Executive Summary
-              </h4>
-              <p
-                className={`text-sm leading-relaxed p-5 rounded-2xl border shadow-inner ${isDarkMode ? "text-slate-400 bg-[#0b0f19] border-[#2A2F3D]" : "text-slate-600 bg-slate-50 border-slate-100"}`}
-              >
-                {selectedNote?.summary}
-              </p>
-            </div>
-            <div>
-              <h4
-                className={`font-bold mb-2 tracking-tight ${isDarkMode ? "text-slate-200" : "text-slate-800"}`}
-              >
-                Key Takeaways
-              </h4>
-              <p
-                className={`text-sm leading-relaxed p-5 rounded-2xl border shadow-inner whitespace-pre-wrap ${isDarkMode ? "text-slate-400 bg-[#0b0f19] border-[#2A2F3D]" : "text-slate-600 bg-slate-50 border-slate-100"}`}
-              >
-                {selectedNote?.takeaways}
-              </p>
-            </div>
-            {selectedNote?.decisions && (
-              <div>
-                <h4
-                  className={`font-bold mb-2 tracking-tight ${isDarkMode ? "text-slate-200" : "text-slate-800"}`}
-                >
-                  Decisions
+        ) : activeTab === "flashcards" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full h-full p-2">
+            {selectedNote.flashcards.map((card, index) => (
+              <Flashcard key={index} front={card.front} back={card.back} isDarkMode={isDarkMode} />
+            ))}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto custom-scrollbar w-full h-full space-y-8 pr-2">
+            {validDiagrams.map((diag, index) => (
+              <div key={index} className={`block p-6 rounded-xl border w-full ${isDarkMode ? "bg-[#0b0f19] border-[#2A2F3D]" : "bg-slate-50 border-slate-100"}`}>
+                <h4 className={`font-bold mb-4 border-b pb-2 ${isDarkMode ? "text-emerald-400 border-emerald-500/20" : "text-emerald-600 border-emerald-200"}`}>
+                  {diag.title}
                 </h4>
-                <p
-                  className={`text-sm leading-relaxed p-5 rounded-2xl border shadow-inner whitespace-pre-wrap ${isDarkMode ? "text-slate-400 bg-[#0b0f19] border-[#2A2F3D]" : "text-slate-600 bg-slate-50 border-slate-100"}`}
-                >
-                  {selectedNote.decisions}
-                </p>
+                <div className="w-full h-[400px]">
+                  <MermaidDiagram chart={diag.code} isDarkMode={isDarkMode} />
+                </div>
               </div>
-            )}
+            ))}
           </div>
-        </div>
-
-        {/* DIAGRAM SECTION - Fixed 650px Min Height */}
-        <div
-          className={`shadow-lg rounded-[2rem] p-8 flex flex-col border transition-all duration-500 ease-in-out min-h-[650px] ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D]" : "bg-white border-slate-200"}`}
-        >
-          <div
-            className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b pb-4 ${isDarkMode ? "border-[#2A2F3D]" : "border-slate-100"}`}
-          >
-            <h3
-              className={`font-bold text-xl tracking-tight flex items-center gap-2 shrink-0 ${isDarkMode ? "text-blue-400" : "text-blue-700"}`}
-            >
-              <Workflow size={20} /> Extracted Diagram
-            </h3>
-
-            <div className="flex items-center gap-2">
-              {/* 🌟 UNIFIED BUTTON DESIGN */}
-              <button
-                onClick={() => setIsEditingGraph(!isEditingGraph)}
-                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-colors border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${isDarkMode ? "bg-[#131722] hover:bg-[#232a3b] text-slate-300 border-[#2A2F3D]" : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"}`}
-              >
-                {isEditingGraph ? (
-                  <Eye
-                    size={14}
-                    className={isDarkMode ? "text-blue-400" : "text-blue-600"}
-                  />
-                ) : (
-                  <Edit3
-                    size={14}
-                    className={
-                      isDarkMode ? "text-emerald-400" : "text-emerald-600"
-                    }
-                  />
-                )}
-                {isEditingGraph ? "Preview Diagram" : "Edit Code"}
-              </button>
-
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(editedGraph);
-                  showToast("Mermaid code copied!");
-                }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-colors border focus:outline-none focus:ring-2 focus:ring-slate-500 ${isDarkMode ? "bg-[#131722] hover:bg-[#232a3b] text-slate-300 border-[#2A2F3D]" : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"}`}
-              >
-                <Copy size={14} /> Copy Code
-              </button>
-            </div>
-          </div>
-
-          <div
-            className={`flex-1 w-full shadow-inner rounded-2xl flex flex-col overflow-hidden border transition-all duration-500 ease-in-out ${isDarkMode ? "bg-[#0b0f19] border-[#2A2F3D]" : "bg-slate-50 border-slate-100"}`}
-          >
-            {isEditingGraph ? (
-              <textarea
-                value={editedGraph}
-                onChange={(e) => setEditedGraph(e.target.value)}
-                className={`flex-1 w-full h-full p-6 font-mono text-sm resize-none outline-none custom-scrollbar ${isDarkMode ? "bg-transparent text-blue-300 placeholder-slate-600" : "bg-transparent text-blue-800 placeholder-slate-400"}`}
-                spellCheck="false"
-                placeholder="Enter Mermaid syntax here..."
-              />
-            ) : (
-              <div className="flex-1 w-full h-full flex items-center justify-center p-8 overflow-x-auto custom-scrollbar">
-                {editedGraph.trim() ? (
-                  <MermaidDiagram chart={editedGraph} isDarkMode={isDarkMode} />
-                ) : (
-                  <p
-                    className={`text-sm italic font-medium ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
-                  >
-                    No valid code to display.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 }
