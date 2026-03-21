@@ -13,11 +13,14 @@ def run_pipeline(text):
 
     diagram = enhance_diagram(notes)
 
+    # 🚀 FIX: Utilize the safe local fallback if the AI fails or returns nothing
     if not diagram:
+        print("⚠️ AI Diagram failed, using safe local fallback.")
+        fallback_diagram = generate_diagram_local(text)
         return {
-        "notes": notes,
-        "diagram": "API FAILED"
-    }
+            "notes": notes,
+            "diagram": fallback_diagram
+        }
 
     return {
         "notes": notes,
