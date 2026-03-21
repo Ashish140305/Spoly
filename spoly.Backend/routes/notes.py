@@ -15,4 +15,7 @@ async def generate_notes(file: UploadFile = File(...)):
 
     result = run_pipeline(text)
 
+    # 🚀 Add the transcribed text to the result dictionary so the frontend can display it
+    result["transcript"] = text
+
     return result
