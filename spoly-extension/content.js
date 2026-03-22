@@ -12,6 +12,20 @@ let hostElem = null;
 let isMasterTab = false;
 let remoteTimerInterval = null;
 
+function safeSendMessage(messageObj) {
+  try {
+    chrome.runtime.sendMessage(messageObj).catch(() => { });
+  } catch (error) {
+    if (error.message.includes("Extension context invalidated")) {
+      console.error("🚨 Extension Orphaned!");
+      alert("⚠️ Extension Reloaded!\n\nYou must refresh this page (F5) before you can record again.");
+      if (document.getElementById('spoly-fab-root')) {
+        document.getElementById('spoly-fab-root').remove();
+      }
+    }
+  }
+}
+
 function injectNexusBot() {
   if (document.getElementById('spoly-fab-root')) {
     const wrapper = document.getElementById('spoly-fab-root').shadowRoot.getElementById('widget-wrapper');
@@ -63,7 +77,6 @@ function injectNexusBot() {
     .bars { display: flex; gap: 4px; height: 16px; align-items: center; }
     .bar { width: 3px; background: #555; border-radius: 4px; height: 20%; transition: height 0.15s ease, background 0.3s ease, box-shadow 0.3s ease; opacity: 0.8; }
     
-    /* 🚀 DUAL COLOR VISUALIZER STYLES */
     .wrapper.recording .bar { animation: bounceWave 0.8s ease-in-out infinite; background: #ef4444; opacity: 1; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
     .wrapper.recording.speaker-mic .bar { background: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.6); }
     .wrapper.recording.speaker-sys .bar { background: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,0.6); }
@@ -266,10 +279,13 @@ function injectNexusBot() {
   let mediaRecorder = null; let audioChunks = []; let timerInterval = null; let seconds = 0;
   let isSendingToCloud = false; let audioCtx, silenceTimer;
   let isAutoPaused = false;
+  let chunkIndex = 0;
 
   let displayStream = null;
   let micStreamGlobal = null;
   let isMicMuted = true;
+
+  let chunkIntervalRef = null;
 
   const formatTime = (sec) => { const m = Math.floor(sec / 60).toString().padStart(2, '0'); const s = (sec % 60).toString().padStart(2, '0'); return `${m}:${s}`; };
   const updateTimers = (timeStr) => { timerDisplay.textContent = timeStr; orbTimer.textContent = timeStr; };
@@ -288,7 +304,7 @@ function injectNexusBot() {
   }
 
   muteBtn.onclick = (e) => {
-    if (e && e.isTrusted && !isMasterTab) return chrome.runtime.sendMessage({ action: 'REMOTE_CONTROL', command: 'MUTE' });
+    if (e && e.isTrusted && !isMasterTab) return safeSendMessage({ action: 'REMOTE_CONTROL', command: 'MUTE' });
     isMicMuted = !isMicMuted;
     applyMuteUI(isMicMuted);
 
@@ -337,7 +353,6 @@ function injectNexusBot() {
     updatePanelPosition();
   }
 
-  // 🚀 FIX: Sync ALL visual states when injected on a new tab
   chrome.storage.local.get(['spolyBotX', 'spolyBotY', 'spolyPanelOpen', 'spolyRecordingLive', 'spolyRecordingPaused', 'spolyRecordingStartTime', 'spolyMicMuted', 'spolySpeakerState'], (res) => {
     if (res.spolyBotX !== undefined && res.spolyBotY !== undefined) {
       host.style.left = `${Math.max(0, Math.min(res.spolyBotX, window.innerWidth - 60))}px`;
@@ -375,7 +390,7 @@ function injectNexusBot() {
       alert("⚠️ A recording is currently in progress!\n\nPlease use the 'Save' or 'Send' button to stop the recording before closing the widget.");
       return;
     }
-    chrome.runtime.sendMessage({ action: 'GLOBAL_CLOSE' });
+    safeSendMessage({ action: 'GLOBAL_CLOSE' });
   };
 
   collapsePanelBtn.onclick = () => { chrome.storage.local.set({ spolyPanelOpen: false }); applyPanelState(false); };
@@ -420,7 +435,6 @@ function injectNexusBot() {
 
         if (currentSpeaker !== lastSpeakerState) {
           lastSpeakerState = currentSpeaker;
-          // Push to storage so other tabs see the color change instantly!
           chrome.storage.local.set({ spolySpeakerState: currentSpeaker });
 
           wrapper.classList.remove('speaker-mic', 'speaker-sys');
@@ -430,11 +444,11 @@ function injectNexusBot() {
 
         const maxVol = Math.max(micVol, sysVol);
         if (maxVol < 2) {
-          if (!silenceTimer) { silenceTimer = setTimeout(() => { if (mediaRecorder.state === 'recording') { isAutoPaused = true; pauseBtn.click(); chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Spoly paused recording due to silence.' }); } }, 30000); }
+          if (!silenceTimer) { silenceTimer = setTimeout(() => { if (mediaRecorder.state === 'recording') { isAutoPaused = true; pauseBtn.click(); safeSendMessage({ action: 'SHOW_NOTIFICATION', message: 'Spoly paused recording due to silence.' }); } }, 30000); }
         } else { clearTimeout(silenceTimer); silenceTimer = null; }
       } else if (mediaRecorder.state === 'paused' && isAutoPaused) {
         const maxVol = Math.max(micVol, sysVol);
-        if (maxVol > 4) { isAutoPaused = false; pauseBtn.click(); chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Audio detected! Spoly resumed recording.' }); }
+        if (maxVol > 4) { isAutoPaused = false; pauseBtn.click(); safeSendMessage({ action: 'SHOW_NOTIFICATION', message: 'Audio detected! Spoly resumed recording.' }); }
       }
       requestAnimationFrame(checkLevel);
     }
@@ -444,6 +458,10 @@ function injectNexusBot() {
   startBtn.onclick = async () => {
     displayStream = null;
     micStreamGlobal = null;
+
+    audioChunks = [];
+    chunkIndex = 0;
+    if (chunkIntervalRef) clearInterval(chunkIntervalRef);
 
     try {
       try {
@@ -494,9 +512,22 @@ function injectNexusBot() {
       else if (MediaRecorder.isTypeSupported('audio/webm')) options.mimeType = 'audio/webm';
 
       mediaRecorder = new MediaRecorder(mixedAudioStream, options);
-      mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) audioChunks.push(e.data); };
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) {
+          audioChunks.push(e.data);
+
+          const currentIndex = chunkIndex++;
+          const reader = new FileReader();
+          reader.readAsDataURL(e.data);
+          reader.onloadend = () => {
+            safeSendMessage({ action: 'PROCESS_CHUNK', audioData: reader.result, index: currentIndex });
+          };
+        }
+      };
 
       mediaRecorder.onstop = () => {
+        if (chunkIntervalRef) clearInterval(chunkIntervalRef);
         displayStream.getTracks().forEach(t => t.stop());
         if (micStreamGlobal) micStreamGlobal.getTracks().forEach(t => t.stop());
         if (audioCtx) audioCtx.close();
@@ -506,7 +537,7 @@ function injectNexusBot() {
         applyMuteUI(true);
         chrome.storage.local.set({ spolyMicMuted: true, spolyRecordingLive: false });
 
-        chrome.runtime.sendMessage({ action: 'SET_BADGE', text: '', color: '#000000' });
+        safeSendMessage({ action: 'SET_BADGE', text: '', color: '#000000' });
 
         wrapper.classList.remove('recording', 'paused', 'speaker-mic', 'speaker-sys');
         pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
@@ -516,30 +547,27 @@ function injectNexusBot() {
         clearInterval(timerInterval); updateTimers("Ready");
 
         if (isSendingToCloud) {
-          const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          const reader = new FileReader(); reader.readAsDataURL(finalBlob);
-          reader.onloadend = () => {
-            chrome.runtime.sendMessage({ action: 'PROCESS_AND_SEND_AUDIO', audioData: reader.result });
-            chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Meeting successfully sent to Spoly!' });
-            chrome.storage.local.set({ spolyPanelOpen: false });
-          };
+          // 🚀 ONLY SEND THIS ONCE. React app listens and natively builds the file!
+          safeSendMessage({ action: 'RECORDING_STOPPED' });
+          safeSendMessage({ action: 'SHOW_NOTIFICATION', message: 'Processing your Spoly Notes...' });
+          chrome.storage.local.set({ spolyPanelOpen: false });
         } else {
-          chrome.runtime.sendMessage({ action: 'RECORDING_STOPPED' }).catch(() => { });
+          safeSendMessage({ action: 'RECORDING_STOPPED' });
           const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
           const a = document.createElement('a'); a.href = URL.createObjectURL(finalBlob); a.download = `Spoly_Audio_${Date.now()}.webm`; a.click();
-          chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Audio saved locally!' });
+          safeSendMessage({ action: 'SHOW_NOTIFICATION', message: 'Audio saved locally!' });
         }
       };
 
       displayStream.getVideoTracks()[0].onended = () => { if (mediaRecorder && mediaRecorder.state !== 'inactive') stopBtn.click(); };
 
-      mediaRecorder.start();
+      mediaRecorder.start(5000);
+
       monitorAudio(micStreamGlobal, displayStream, audioCtx);
       isMasterTab = true; isAutoPaused = false;
 
       const pageTitle = document.title || "Live Web Capture";
 
-      // 🚀 Save Title directly to Storage for bulletproof syncing
       chrome.storage.local.set({
         spolyRecordingLive: true,
         spolyRecordingStartTime: Date.now(),
@@ -547,9 +575,9 @@ function injectNexusBot() {
         spolyRecordingTitle: pageTitle
       });
 
-      chrome.runtime.sendMessage({ action: 'RECORDING_STARTED', title: pageTitle }).catch(() => { });
-      chrome.runtime.sendMessage({ action: 'SHOW_NOTIFICATION', message: 'Dual-Stream Recording started successfully!' });
-      chrome.runtime.sendMessage({ action: 'SET_BADGE', text: 'REC', color: '#EF4444' });
+      safeSendMessage({ action: 'RECORDING_STARTED', title: pageTitle });
+      safeSendMessage({ action: 'SHOW_NOTIFICATION', message: 'Dual-Stream Recording started successfully!' });
+      safeSendMessage({ action: 'SET_BADGE', text: 'REC', color: '#EF4444' });
 
       wrapper.classList.add('recording');
       seconds = 0; updateTimers("00:00");
@@ -564,18 +592,18 @@ function injectNexusBot() {
 
   pauseBtn.onclick = (e) => {
     if (e && e.isTrusted) isAutoPaused = false;
-    if (!isMasterTab) return chrome.runtime.sendMessage({ action: 'REMOTE_CONTROL', command: 'PAUSE' });
+    if (!isMasterTab) return safeSendMessage({ action: 'REMOTE_CONTROL', command: 'PAUSE' });
 
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       mediaRecorder.pause();
       wrapper.classList.remove('recording', 'speaker-mic', 'speaker-sys'); wrapper.classList.add('paused');
       pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
       orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
-      pauseBtn.classList.remove('btn-pause'); pauseBtn.classList.add('btn-resume');
+      pauseBtn.classList.remove('btn-resume'); pauseBtn.classList.add('btn-resume');
 
       chrome.storage.local.set({ spolyRecordingPaused: true });
       clearInterval(timerInterval); updateTimers(`PAUSED`);
-      chrome.runtime.sendMessage({ action: 'SET_BADGE', text: 'PAUSE', color: '#F59E0B' });
+      safeSendMessage({ action: 'SET_BADGE', text: 'PAUSE', color: '#F59E0B' });
 
     } else if (mediaRecorder && mediaRecorder.state === 'paused') {
       mediaRecorder.resume();
@@ -587,18 +615,18 @@ function injectNexusBot() {
       chrome.storage.local.set({ spolyRecordingPaused: false, spolyRecordingStartTime: Date.now() - (seconds * 1000) });
       updateTimers(formatTime(seconds));
       timerInterval = setInterval(() => { seconds++; updateTimers(formatTime(seconds)); }, 1000);
-      chrome.runtime.sendMessage({ action: 'SET_BADGE', text: 'REC', color: '#EF4444' });
+      safeSendMessage({ action: 'SET_BADGE', text: 'REC', color: '#EF4444' });
     }
   };
 
   stopBtn.onclick = () => {
-    if (!isMasterTab) return chrome.runtime.sendMessage({ action: 'REMOTE_CONTROL', command: 'STOP' });
+    if (!isMasterTab) return safeSendMessage({ action: 'REMOTE_CONTROL', command: 'STOP' });
     if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
     isSendingToCloud = false; mediaRecorder.stop();
   };
 
   sendBtn.onclick = async () => {
-    if (!isMasterTab) return chrome.runtime.sendMessage({ action: 'REMOTE_CONTROL', command: 'SEND' });
+    if (!isMasterTab) return safeSendMessage({ action: 'REMOTE_CONTROL', command: 'SEND' });
     if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
     isSendingToCloud = true;
     mediaRecorder.stop();
@@ -609,6 +637,11 @@ function injectNexusBot() {
     else if (e.data.type === 'INTERNAL_SYNC_POS') { host.style.left = `${e.data.x}px`; host.style.top = `${e.data.y}px`; updatePanelPosition(); }
     else if (e.data.type === 'INTERNAL_SYNC_PANEL') { applyPanelState(e.data.isOpen); }
     else if (e.data.type === 'INTERNAL_SYNC_MUTE') { applyMuteUI(e.data.isMuted); }
+
+    else if (e.data.type === 'SPOLY_REMOTE_STOP_EXTENSION') {
+      const stopButton = document.getElementById('spoly-fab-root')?.shadowRoot.getElementById('sendBtn');
+      if (stopButton) stopButton.click();
+    }
   });
 
   function applyRemoteUI(isLive, isPaused, startTime) {
@@ -620,7 +653,7 @@ function injectNexusBot() {
         wrapper.classList.remove('recording', 'speaker-mic', 'speaker-sys'); wrapper.classList.add('paused');
         pauseBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
         orbPause.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" rx="1"/></svg>`;
-        pauseBtn.classList.remove('btn-pause'); pauseBtn.classList.add('btn-resume');
+        pauseBtn.classList.remove('btn-resume'); pauseBtn.classList.add('btn-resume');
         updateTimers('PAUSED');
       } else {
         wrapper.classList.remove('paused'); wrapper.classList.add('recording');
@@ -653,7 +686,6 @@ function injectNexusBot() {
   });
 }
 
-// 🚀 FIX: Bulletproof Title Synchronization Heartbeat
 setInterval(() => {
   chrome.storage.local.get(['spolyRecordingLive', 'spolyRecordingTitle'], (res) => {
     if (res.spolyRecordingLive) {
@@ -662,7 +694,6 @@ setInterval(() => {
   });
 }, 1000);
 
-// 🚀 FIX: Master State Watcher (Ensures Youtube SPA injection and Dual Color Sync)
 chrome.storage.onChanged.addListener((changes) => {
 
   if (changes.spolyBotActive) {
@@ -735,11 +766,10 @@ chrome.runtime.onMessage.addListener((req) => {
     window.postMessage({ type: 'SPOLY_RECORDING_STARTED', title: req.title }, '*');
   }
   else if (req.action === 'RECORDING_STOPPED') { window.postMessage({ type: 'SPOLY_RECORDING_STOPPED' }, '*'); }
-  else if (req.action === 'RECEIVE_AUDIO') { window.postMessage({ type: 'SPOLY_UPLOAD_COMPLETE', audioUrl: req.audioData }, '*'); }
+  else if (req.action === 'RECEIVE_CHUNK') { window.postMessage({ type: 'SPOLY_RECEIVE_CHUNK', audioData: req.audioData, index: req.index }, '*'); }
 });
 
 if (!window.location.href.startsWith('chrome')) {
-  // Initial Boot
   chrome.storage.local.get(['spolyBotActive'], (result) => {
     if (result.spolyBotActive === true) {
       if (document.readyState === 'complete') injectNexusBot();
@@ -747,7 +777,6 @@ if (!window.location.href.startsWith('chrome')) {
     }
   });
 
-  // Watcher for Single Page Apps (like YouTube)
   setInterval(() => {
     if (!document.getElementById('spoly-fab-root')) {
       chrome.storage.local.get(['spolyBotActive'], (res) => {

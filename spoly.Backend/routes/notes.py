@@ -1,27 +1,82 @@
 from fastapi import APIRouter, UploadFile, File, Form
 from services.pipeline import run_pipeline
 from services.speech import speech_to_text
+import re
 
 router = APIRouter()
 
-# 🚀 UPDATED: Now extracts the `template` from the incoming form data
 @router.post("/generate")
 async def generate_notes(
     file: UploadFile = File(...), 
     template: str = Form("Standard Study Notes")
 ):
+    try:
+        is_chunk = file.filename == "chunk.webm"
+        audio_bytes = await file.read()
 
-    audio_bytes = await file.read()
+        print(f"\n📥 [API HIT] Received {'Chunk' if is_chunk else 'Final'} Audio | Size: {len(audio_bytes)} bytes", flush=True)
 
-    text = speech_to_text(audio_bytes)
+        if len(audio_bytes) < 100:
+            return {"transcript": "", "notes": "", "diagram": '{"diagrams": [], "flashcards": []}'}
 
-    print("🗣️ TRANSCRIBED:", text)
-    print("📝 TEMPLATE USED:", template)
+        text = speech_to_text(audio_bytes)
 
-    # 🚀 Pass the template down to the pipeline
-    result = run_pipeline(text, template)
+        if not text or len(text.strip()) < 5:
+            return {"transcript": text, "notes": "", "diagram": '{"diagrams": [], "flashcards": []}'}
 
-    # Add the transcribed text to the result dictionary so the frontend can display it
-    result["transcript"] = text
+        if is_chunk:
+            from services.summarize import generate_notes as fast_summary
+            notes = ""
+            try:
+                notes = fast_summary(text)
+            except Exception:
+                pass 
+            
+            return {"transcript": text, "notes": notes, "diagram": '{"diagrams": [], "flashcards": []}'}
 
-    return result
+        print("🚀 Processing FINAL complete audio file...", flush=True)
+        result = run_pipeline(text, template)
+        result["transcript"] = text
+        return result
+
+    except Exception as e:
+        print("🚨 GENERATE API ERROR:", e, flush=True)
+        return {"error": str(e), "transcript": "", "notes": "", "diagram": '{"diagrams": [], "flashcards": []}'}
+
+
+@router.post("/youtube")
+async def generate_from_youtube(
+    url: str = Form(...),
+    template: str = Form("Standard Study Notes")
+):
+    try:
+        video_id = ""
+        match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11}).*", url)
+        if match:
+            video_id = match.group(1)
+        
+        if not video_id:
+            return {"error": "Invalid YouTube URL format.", "transcript": "", "notes": "", "diagram": "API FAILED"}
+
+        text = ""
+        
+        try:
+            from youtube_transcript_api import YouTubeTranscriptApi
+            ytt_api = YouTubeTranscriptApi()
+            fetched_transcript = ytt_api.fetch(video_id)
+            transcript_list = fetched_transcript.to_raw_data()
+            text = " ".join([chunk['text'] for chunk in transcript_list])
+        except Exception as e:
+            raise Exception(f"Transcript Fetch Failed: {str(e)}")
+        
+        if not text:
+            raise Exception("Could not fetch transcript")
+
+        print(f"🗣️ YT TRANSCRIBED ({len(text)} chars)", flush=True)
+        result = run_pipeline(text, template)
+        result["transcript"] = text
+        return result
+
+    except Exception as e:
+        print("🚨 YT Error:", e, flush=True)
+        return {"error": str(e), "transcript": "", "notes": f"Failed to fetch YouTube transcript: {str(e)}", "diagram": 'API FAILED'}
