@@ -85,6 +85,7 @@ const decodeBase64ToBlob = async (base64Data) => {
   }
 };
 
+// Merged Diagram Parser: Uses File 1's architecture with File 2's Robust Sanitization Pipeline
 const parseBackendDiagrams = (diagramString) => {
   let processedDiagrams = [];
   let processedFlashcards = [];
@@ -104,6 +105,7 @@ const parseBackendDiagrams = (diagramString) => {
         );
         if (match) generatedGraph = match[1];
 
+        // GLOBAL STRIPPING
         generatedGraph = generatedGraph
           .replace(/\x60\x60\x60/g, "")
           .replace(/^---[\s\S]*?---/g, "")
@@ -114,6 +116,7 @@ const parseBackendDiagrams = (diagramString) => {
 
         const lowerGraph = generatedGraph.toLowerCase();
 
+        // ROBUST TYPE-SPECIFIC SANITIZERS (Merged from File 2)
         if (
           lowerGraph.startsWith("graph") ||
           lowerGraph.startsWith("flowchart")
@@ -121,18 +124,59 @@ const parseBackendDiagrams = (diagramString) => {
           generatedGraph = generatedGraph
             .replace(/(graph|flowchart)\s+([A-Z]{2,})\s+(.+)/gim, "$1 $2\n$3")
             .replace(/\|[^|]+\|/g, "")
+            // Automatically repair broken short arrows '->' to '-->'
+            .replace(/([^-\s])\s*->\s*([^-\s])/g, "$1 --> $2")
             .replace(/->>/g, "-->")
             .replace(/([A-Za-z0-9_\]])\s*:\s*[^"'\n]+/g, "$1")
             .replace(/\[\[/g, "[")
             .replace(/\]\]/g, "]")
-            .replace(/\(\(/g, "(")
-            .replace(/\)\)/g, ")")
-            .replace(/\b(end)([A-Za-z0-9_\[])/gi, "$1\n$2")
-            .replace(
-              /\[(.*?)\]/g,
-              (match, innerText) =>
-                `["${innerText.replace(/["'\\[\]:]/g, "").trim()}"]`,
-            );
+            .replace(/\(\(\(/g, "((")
+            .replace(/\)\)\)/g, "))")
+            .replace(/\{\{/g, "{")
+            .replace(/\}\}/g, "}")
+            .replace(/【/g, "[")
+            .replace(/】/g, "]")
+            .replace(/endsubgraph/gi, "end\nsubgraph")
+            // Catches ']' jammed next to 'subgraph' and forces a new line
+            .replace(/([\]\)"'}])\s*\bsubgraph\b/gi, "$1\nsubgraph")
+            .replace(/\b(end)([A-Za-z0-9_\[\{])/gi, "$1\n$2")
+            .replace(/([\]\)"'}])\s*\bend\b/gi, "$1\nend")
+            .replace(/(["'])(.*?)(["'])/g, (match, p1, innerText, p3) => {
+              let safeText = innerText
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/["'\\[\]{}]/g, "")
+                .trim();
+              return `"${safeText}"`;
+            });
+
+          const fcLines = generatedGraph.split("\n");
+          generatedGraph = fcLines
+            .map((line) => {
+              return line.replace(/\u00A0/g, " ").trim();
+            })
+            .filter((line) => {
+              if (!line) return false;
+              if (
+                /^(flowchart|graph|subgraph|end|style|class|classDef|click)\b/i.test(
+                  line,
+                )
+              )
+                return true;
+              // Broader arrow allowlist so valid connections NEVER get deleted
+              if (
+                line.includes("-->") ||
+                line.includes("---") ||
+                line.includes("-.-") ||
+                line.includes("==>")
+              )
+                return true;
+              // Allows standard node shapes ([], {}, (), [()], >])
+              if (/^[A-Za-z0-9_]+\s*(\[|\{|\(|\>).+(\]|\}|\)|\>)$/.test(line))
+                return true;
+              return false;
+            })
+            .join("\n");
         } else if (lowerGraph.startsWith("gantt")) {
           generatedGraph =
             "timeline\n  title Timeline Overview\n  Processing\n    Data Extracted";
@@ -716,7 +760,6 @@ export default function LiveNotes() {
 
   const pauseLocalRef = useRef((isPaused) => {
     if (isFinalizingRef.current) return;
-    isPausedRef.current = isPaused;
     setStatus(isPaused ? "paused" : "recording");
   });
 
@@ -769,10 +812,7 @@ export default function LiveNotes() {
           } catch (err) {}
         };
         processBase64();
-      }
-
-      // 🚀 THE FIX: We trigger finalization explicitly on STOPPED.
-      else if (
+      } else if (
         type === "SPOLY_RECORDING_STOPPED" ||
         type === "SPOLY_UPLOAD_COMPLETE"
       ) {
@@ -800,7 +840,7 @@ export default function LiveNotes() {
             );
             finishProcessing(capturedTitleRef.current || "Live Capture");
           }
-        }, 800); // 800ms Buffer to catch the very last slice
+        }, 800);
       }
     };
     window.addEventListener("message", handleMessage);
@@ -2082,6 +2122,7 @@ export default function LiveNotes() {
                 <SettingsView
                   user={user}
                   settingsToggles={settingsToggles}
+                  setSettingsToggles={setSettingsToggles}
                   showToast={showToast}
                   isDarkMode={isDarkMode}
                   setIsDarkMode={setIsDarkMode}
