@@ -85,7 +85,6 @@ const decodeBase64ToBlob = async (base64Data) => {
   }
 };
 
-// Merged Diagram Parser: Uses File 1's architecture with File 2's Robust Sanitization Pipeline
 const parseBackendDiagrams = (diagramString) => {
   let processedDiagrams = [];
   let processedFlashcards = [];
@@ -116,7 +115,7 @@ const parseBackendDiagrams = (diagramString) => {
 
         const lowerGraph = generatedGraph.toLowerCase();
 
-        // ROBUST TYPE-SPECIFIC SANITIZERS (Merged from File 2)
+        // ROBUST TYPE-SPECIFIC SANITIZERS
         if (
           lowerGraph.startsWith("graph") ||
           lowerGraph.startsWith("flowchart")
@@ -124,7 +123,6 @@ const parseBackendDiagrams = (diagramString) => {
           generatedGraph = generatedGraph
             .replace(/(graph|flowchart)\s+([A-Z]{2,})\s+(.+)/gim, "$1 $2\n$3")
             .replace(/\|[^|]+\|/g, "")
-            // Automatically repair broken short arrows '->' to '-->'
             .replace(/([^-\s])\s*->\s*([^-\s])/g, "$1 --> $2")
             .replace(/->>/g, "-->")
             .replace(/([A-Za-z0-9_\]])\s*:\s*[^"'\n]+/g, "$1")
@@ -137,7 +135,6 @@ const parseBackendDiagrams = (diagramString) => {
             .replace(/【/g, "[")
             .replace(/】/g, "]")
             .replace(/endsubgraph/gi, "end\nsubgraph")
-            // Catches ']' jammed next to 'subgraph' and forces a new line
             .replace(/([\]\)"'}])\s*\bsubgraph\b/gi, "$1\nsubgraph")
             .replace(/\b(end)([A-Za-z0-9_\[\{])/gi, "$1\n$2")
             .replace(/([\]\)"'}])\s*\bend\b/gi, "$1\nend")
@@ -163,7 +160,6 @@ const parseBackendDiagrams = (diagramString) => {
                 )
               )
                 return true;
-              // Broader arrow allowlist so valid connections NEVER get deleted
               if (
                 line.includes("-->") ||
                 line.includes("---") ||
@@ -171,7 +167,6 @@ const parseBackendDiagrams = (diagramString) => {
                 line.includes("==>")
               )
                 return true;
-              // Allows standard node shapes ([], {}, (), [()], >])
               if (/^[A-Za-z0-9_]+\s*(\[|\{|\(|\>).+(\]|\}|\)|\>)$/.test(line))
                 return true;
               return false;
@@ -536,9 +531,6 @@ export default function LiveNotes() {
   const localAudioChunks = useRef([]);
   const extensionAudioChunksRef = useRef([]);
 
-  const chunkIntervalRef = useRef(null);
-
-  // 🚀 THE IRON SHIELD
   const isFinalizingRef = useRef(false);
 
   const fileInputRef = useRef(null);
@@ -610,9 +602,17 @@ export default function LiveNotes() {
       if (response.ok) {
         if (isFinalizingRef.current) return;
         const data = await response.json();
-        if (data.transcript) setTranscript(data.transcript);
-        if (data.notes)
-          setMeetingNotes((prev) => ({ ...prev, summary: data.notes }));
+
+        // 🚀 ALWAYS APPEND text so nothing is lost, and we only process raw new audio slices!
+        if (data.transcript) {
+          setTranscript((prev) => prev + (prev ? " " : "") + data.transcript);
+        }
+        if (data.notes) {
+          setMeetingNotes((prev) => ({
+            ...prev,
+            summary: prev.summary + (prev.summary ? "\n\n" : "") + data.notes,
+          }));
+        }
       }
     } catch (e) {
       console.error("Live chunk skipped due to rate limit/error.");
@@ -661,6 +661,8 @@ export default function LiveNotes() {
       });
     } catch (err) {
       console.warn("Spoly: Mic denied", err);
+      showToast("Mic unavailable or denied.");
+      return;
     }
 
     setActiveTab("workspace");
@@ -677,8 +679,6 @@ export default function LiveNotes() {
     setEditableFlashcards([]);
     setCurrentAudioUrl(null);
 
-    if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
-
     if (stream) {
       setAudioStream(stream);
       let options = {};
@@ -687,20 +687,37 @@ export default function LiveNotes() {
 
       const recorder = new MediaRecorder(stream, options);
       localAudioChunks.current = [];
+      let headerChunk = null;
 
       recorder.ondataavailable = async (e) => {
         if (e.data && e.data.size > 0) {
+          // 🚀 1. Always save the raw data to the main array so the FINAL output is completely accurate
           localAudioChunks.current.push(e.data);
-          const chunkBlob = new Blob(localAudioChunks.current, {
-            type: "audio/webm",
-          });
-          await processAudioChunkWithBackend(chunkBlob);
+
+          if (!headerChunk) {
+            // 🚀 2. Save the very first 10-second chunk
+            headerChunk = e.data;
+            // Send it directly to backend
+            await processAudioChunkWithBackend(e.data);
+          } else {
+            // 🚀 3. THE MAGIC FIX: Slice ONLY the first 15KB of the original chunk.
+            // This safely extracts the WebM/EBML Header without grabbing any repeating audio!
+            const safeHeader = headerChunk.slice(0, 15000);
+
+            // 🚀 4. Stitch the tiny header onto the new audio slice and send it.
+            // The file stays permanently tiny (~100KB), queue stays completely empty!
+            const chunkBlob = new Blob([safeHeader, e.data], {
+              type: "audio/webm",
+            });
+            await processAudioChunkWithBackend(chunkBlob);
+          }
         }
       };
 
       recorder.onstop = async () => {
-        if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
         try {
+          // 🚀 5. When the user clicks Stop, we stitch the FULL continuous array together
+          // This ensures the backend analyzes the COMPLETE lecture perfectly from scratch!
           const finalBlob = new Blob(localAudioChunks.current, {
             type: "audio/webm",
           });
@@ -718,11 +735,9 @@ export default function LiveNotes() {
         }
       };
 
-      recorder.start(5000);
+      // Emit precisely 10 seconds of isolated audio slices naturally
+      recorder.start(10000);
       localMediaRecorderRef.current = recorder;
-    } else {
-      showToast("Mic unavailable or denied.");
-      localMediaRecorderRef.current = null;
     }
   };
 
@@ -734,7 +749,6 @@ export default function LiveNotes() {
     } else {
       isFinalizingRef.current = true;
       setStatus("processing");
-      if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
 
       if (
         localMediaRecorderRef.current &&
@@ -799,15 +813,17 @@ export default function LiveNotes() {
             if (decodedBlob && decodedBlob.size > 0) {
               extensionAudioChunksRef.current[index] = decodedBlob;
 
-              if (!extensionAudioChunksRef.current[0]) return;
-
-              const validChunks = extensionAudioChunksRef.current.filter(
-                (b) => b,
-              );
-              const accumulatedBlob = new Blob(validChunks, {
-                type: "audio/webm",
-              });
-              processAudioChunkWithBackend(accumulatedBlob);
+              // 🚀 APPLY THE SAME HEADER SLICE FIX TO THE EXTENSION!
+              if (index === 0) {
+                await processAudioChunkWithBackend(decodedBlob);
+              } else {
+                const firstChunk = extensionAudioChunksRef.current[0];
+                const safeHeader = firstChunk.slice(0, 15000);
+                const chunkBlob = new Blob([safeHeader, decodedBlob], {
+                  type: "audio/webm",
+                });
+                await processAudioChunkWithBackend(chunkBlob);
+              }
             }
           } catch (err) {}
         };
@@ -1178,7 +1194,6 @@ export default function LiveNotes() {
     setContextTheme(null);
     capturedTitleRef.current = "";
     extensionAudioChunksRef.current = [];
-    if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
   };
 
   return (
