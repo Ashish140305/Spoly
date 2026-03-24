@@ -364,6 +364,15 @@ const pageVariants = {
 const formatGeneratedNotes = (text, isDarkMode) => {
   if (!text) return "No notes returned from backend.";
 
+  // SAFEGUARD: Ensure text is always a string before splitting to prevent React runtime errors
+  if (typeof text !== "string") {
+    try {
+      text = JSON.stringify(text, null, 2);
+    } catch (e) {
+      text = String(text);
+    }
+  }
+
   return text.split("\n").map((line, index) => {
     const trimmedLine = line.trim();
     if (!trimmedLine) return <div key={index} className="h-3"></div>;
@@ -608,9 +617,15 @@ export default function LiveNotes() {
           setTranscript((prev) => prev + (prev ? " " : "") + data.transcript);
         }
         if (data.notes) {
+          // SAFEGUARD: Ensure data.notes is safely appended even if backend returns an object/array
+          const safeNotesString =
+            typeof data.notes === "string"
+              ? data.notes
+              : JSON.stringify(data.notes);
           setMeetingNotes((prev) => ({
             ...prev,
-            summary: prev.summary + (prev.summary ? "\n\n" : "") + data.notes,
+            summary:
+              prev.summary + (prev.summary ? "\n\n" : "") + safeNotesString,
           }));
         }
       }
