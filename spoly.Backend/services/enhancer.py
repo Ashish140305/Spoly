@@ -1,6 +1,16 @@
+import re
 import requests
 import json
 from utils.config import GROQ_API_KEY
+
+def extract_clean_json(raw_output):
+    """Safely extracts JSON without triggering markdown crashes."""
+    raw_output = raw_output.strip()
+    start = raw_output.find('{')
+    end = raw_output.rfind('}')
+    if start != -1 and end != -1:
+        return raw_output[start:end+1]
+    return raw_output
 
 # =====================================================================
 # 🚀 THE ULTIMATE TEMPLATE DICTIONARY (26 CUSTOM AI PERSONAS)
@@ -152,20 +162,20 @@ TEMPLATE_CONFIGS = {
     },
     "Flashcard Generator": {
         "notes": "📌 Topic Overview\n📌 Key Terminology\n📌 Crucial Facts & Metrics\n📌 Summary Outline",
-        "diagram": "NONE",
-        "diagram_rules": "DO NOT GENERATE ANY DIAGRAMS.",
+        "diagram": "DYNAMIC", # 🟢 NEW: Allow diagrams in Flashcards
+        "diagram_rules": "Generate exactly 1 core diagram (flowchart TD, sequenceDiagram, or timeline) that visually summarizes the entire study material.",
         "flashcards": True
     },
     "AI Auto-Detect": {
         "notes": "📌 Overview\n📌 Key Themes & Concepts\n📌 Detailed Analysis\n📌 Action Items / Summary",
         "diagram": "DYNAMIC",
-        "diagram_rules": "DYNAMIC: Analyze the content and intelligently select the BEST Mermaid format (`flowchart TD`, `mindmap`, `sequenceDiagram`, or `timeline`).",
+        "diagram_rules": "DYNAMIC: Analyze the content and intelligently select the BEST Mermaid format (`flowchart TD`, `sequenceDiagram`, or `timeline`). NEVER use `mindmap` or `gantt` charts to prevent frontend crashes.",
         "flashcards": False
     }
 }
 
 # =====================================================================
-# 🚀 1. NOTES GENERATOR
+# 🚀 1. NOTES GENERATOR (INTEGRATED FORMATTING)
 # =====================================================================
 def enhance_notes(notes, template="AI Auto-Detect"):
     if not GROQ_API_KEY:
@@ -175,7 +185,8 @@ def enhance_notes(notes, template="AI Auto-Detect"):
     headers_instruction = config["notes"]
 
     mismatch_warning = ""
-    if template != "AI Auto-Detect":
+    # 🟢 Excludes Flashcards from strict mismatch checking
+    if template not in ["AI Auto-Detect", "Flashcard Generator"]:
         mismatch_warning = f"""
 🚨 CRITICAL CONTENT MISMATCH RULE 🚨:
 If the input text is COMPLETELY UNRELATED to a "{template}" (e.g., the template is 'Bug Triage' but the audio is about 'Ancient Rome'), YOU MUST STILL GENERATE NOTES.
@@ -213,8 +224,9 @@ Raw Input Transcript:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "llama-3.1-8b-instant",
-                "messages": [{"role": "user", "content": prompt}]
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3 
             },
             timeout=30
         )
@@ -228,7 +240,7 @@ Raw Input Transcript:
 
 
 # =====================================================================
-# 🚀 2. DIAGRAM & FLASHCARD GENERATOR
+# 🚀 2. DIAGRAM & FLASHCARD GENERATOR (SMART DUAL-MODE)
 # =====================================================================
 def enhance_diagram(notes, template="AI Auto-Detect"):
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -238,38 +250,43 @@ def enhance_diagram(notes, template="AI Auto-Detect"):
     diagram_rules = config["diagram_rules"]
     requires_flashcards = config["flashcards"]
 
-    # 🚀 SEMANTIC REASONING & NECESSITY GATE
-    necessity_rule = """
+    # 🚀 NEW: DUAL-MODE INTELLIGENCE
+    if requires_flashcards:
+        necessity_rule = """
+🚨 DUAL-MODE INTELLIGENCE (CRITICAL) 🚨:
+You must act as both an Educational Architect and a Flashcard Creator.
+1. DIAGRAM: Extract the overarching process or structure and map it visually.
+2. FLASHCARDS: Extract key definitions, metrics, and facts for study testing.
+"""
+        diagram_instruction = f"""Generate exactly 1 highly accurate diagram that visually summarizes the text using the `{diagram_type}` format (or dynamic if applicable).
+\nSTRICT RULES: {diagram_rules}"""
+        flashcard_instruction = "You MUST generate exactly 5-10 highly detailed Q&A flashcards based on the text. Provide a `front` (the question or concept) and `back` (the detailed answer or definition)."
+    else:
+        necessity_rule = """
 🚨 SEMANTIC DIAGRAM REASONING (CRITICAL) 🚨:
 You MUST choose the correct visual format based on the specific nature of the data:
-1. ALGORITHMS, MATH, LOGIC, OR PROCESSES (e.g., Merge Sort, loops, step-by-step logic): You MUST use `flowchart TD` or `flowchart LR`. 
-2. CONVERSATIONS OR API CALLS (e.g., Client talking to Server): You MUST use `sequenceDiagram`. DO NOT use sequence diagrams for algorithms.
-3. CATEGORIES OR BRAINSTORMS: You MUST use `mindmap`.
-4. HISTORY OR PHASES: MUST use `timeline`.
+1. ALGORITHMS, MATH, LOGIC, OR PROCESSES: You MUST use `flowchart TD` or `flowchart LR`. 
+2. CONVERSATIONS OR API CALLS: You MUST use `sequenceDiagram`. DO NOT use sequence diagrams for algorithms.
+3. HISTORY OR PHASES: MUST use `timeline`.
 """
-
-    if requires_flashcards:
-        diagram_instruction = "DO NOT generate diagrams. Return an empty array `[]` for `diagrams`."
-        flashcard_instruction = "You MUST generate exactly 5-10 highly detailed Q&A flashcards based on the text. Provide a `front` (question) and `back` (detailed answer)."
-    elif diagram_type == "DYNAMIC" or template == "AI Auto-Detect":
-        diagram_instruction = f"""Generate between 0 and 2 diagrams depending STRICTLY on the necessity of the content. 
+        if diagram_type == "DYNAMIC" or template == "AI Auto-Detect":
+            diagram_instruction = f"""Generate between 0 and 2 diagrams depending STRICTLY on the necessity of the content. 
 If the input covers multiple distinct structural concepts, generate separate diagrams. Mix and match types dynamically based on what fits the data best.
 \nSTRICT RULES: {diagram_rules}"""
-        flashcard_instruction = "You MUST return an empty array `[]` for `flashcards`."
-    else:
-        diagram_instruction = f"""Generate between 0 and 2 diagrams using the `{diagram_type}` format, depending STRICTLY on necessity. 
+        else:
+            diagram_instruction = f"""Generate between 0 and 2 diagrams using the `{diagram_type}` format, depending STRICTLY on necessity. 
 \nSTRICT RULES: {diagram_rules}"""
         flashcard_instruction = "You MUST return an empty array `[]` for `flashcards`."
 
     mismatch_instruction = ""
-    if template != "AI Auto-Detect" and not requires_flashcards:
+    if template not in ["AI Auto-Detect", "Flashcard Generator"]:
         mismatch_instruction = f"""
 🚨 TEMPLATE MISMATCH RULE 🚨:
 If the input content makes ABSOLUTELY NO SENSE for a "{template}" diagram, ABORT the `{diagram_type}`. 
-Do not hallucinate a broken diagram. Instead, fallback to a generic `mindmap` that categorizes the actual content of the text.
+Do not hallucinate a broken diagram. Instead, fallback to a generic `flowchart TD` that categorizes the actual content of the text.
 """
 
-    prompt = f"""You are a master Mermaid.js Architect. The user is using the "{template}" framework.
+    prompt = f"""You are a master Data Architect. The user is using the "{template}" framework.
 Analyze the notes and output pure JSON.
 
 {necessity_rule}
@@ -279,11 +296,9 @@ Analyze the notes and output pure JSON.
 {diagram_instruction}
 
 UNIVERSAL MERMAID SAFETY RULES (CRITICAL):
-- CONNECT YOUR NODES: In flowcharts, EVERY node MUST be connected using an arrow. Do NOT leave nodes floating. Example of correct formatting: 
-  `A["Start"] --> B["Divide Array"]`
-  `B["Divide Array"] --> C["Merge Arrays"]`
-- DESCRIPTIVE NODES: Nodes must contain actual information, not just "Step 1". (e.g., `A["Find Midpoint of Array"]`).
-- NO SPACES IN NODE IDs: In flowcharts, the ID *before* the bracket CANNOT have spaces. Use underscores. (Correct: `Step_1["Do this"] --> Step_2["Do that"]`. Incorrect: `Step 1["Do this"] --> Step 2["Do that"]`).
+- CONNECT YOUR NODES: In flowcharts, EVERY node MUST be connected using an arrow. Do NOT leave nodes floating.
+- NO MINDMAPS: NEVER use the `mindmap` format as it causes parser crashes. Use `flowchart TD` instead.
+- NO SPACES IN NODE IDs: In flowcharts, the ID *before* the bracket CANNOT have spaces. Use underscores. (Correct: `Step_1["Do this"]`).
 - SEPARATE LINES REQUIRED: Every single node definition, connection, participant, and structural keyword MUST be on its own line. Do not combine them.
 - NO DOUBLE BRACKETS: You must ONLY use standard single brackets for nodes `A["Text"]`. NEVER use double brackets `A[["Text"]]` or double parentheses `A((Text))`.
 - NO TITLES IN CODE: Never use `title=` or `--- title ---` inside the mermaid code.
@@ -296,11 +311,16 @@ YOU MUST RESPOND IN PURE, VALID JSON FORMAT LIKE THIS:
 {{
   "diagrams": [
     {{
-      "title": "Algorithm Execution Flow",
-      "code": "flowchart TD\\n  Start_Node[\\"Start Array\\"] --> Split_Node[\\"Split in Half\\"]\\n  Split_Node[\\"Split in Half\\"] --> Merge_Node[\\"Merge Together\\"]"
+      "title": "Example Output Flow",
+      "code": "flowchart TD\\n  Start_Node[\\"Start Array\\"] --> Split_Node[\\"Split in Half\\"]"
     }}
   ],
-  "flashcards": []
+  "flashcards": [
+    {{
+      "front": "What is the capital of France?",
+      "back": "Paris"
+    }}
+  ]
 }}
 
 Input Notes:
@@ -315,18 +335,23 @@ Input Notes:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "llama-3.1-8b-instant",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
                 "response_format": {"type": "json_object"} 
             },
             timeout=30
         )
         
         if res.status_code == 200:
-            output = res.json()["choices"][0]["message"]["content"]
-            parsed_json = json.loads(output)
+            raw_output = res.json()["choices"][0]["message"]["content"]
+            clean_json_str = extract_clean_json(raw_output)
+            parsed_json = json.loads(clean_json_str)
             
-            if not requires_flashcards:
+            # Guarantee the keys exist so React never crashes
+            if "diagrams" not in parsed_json:
+                parsed_json["diagrams"] = []
+            if "flashcards" not in parsed_json:
                 parsed_json["flashcards"] = []
                 
             return json.dumps(parsed_json)
@@ -334,15 +359,18 @@ Input Notes:
     except Exception as e:
         print("❌ ERROR:", e)
 
-    # 🚀 GUARANTEED PYTHON FALLBACK: If API completely crashes, inject dummy diagram JSON
+    # 🚀 GUARANTEED CRASH-FREE FALLBACK FOR BOTH DIAGRAMS AND FLASHCARDS
     fallback_title = "General Overview" if template == "AI Auto-Detect" else "⚠️ Content Mismatch Indicator"
     fallback_node = "Auto Detected Data" if template == "AI Auto-Detect" else "Template Mismatch"
     
     fallback_json = {
         "diagrams": [{
             "title": fallback_title,
-            "code": f"mindmap\n  root(({fallback_node}))\n    Analyzed Notes\n    Extracted Themes\n    Review Material"
+            "code": f"flowchart TD\n  Root[\"{fallback_node}\"] --> Notes[\"Analyzed Notes\"]\n  Root --> Themes[\"Extracted Themes\"]\n  Root --> Review[\"Review Material\"]"
         }],
-        "flashcards": []
+        "flashcards": [{
+            "front": "⚠️ Generation Error",
+            "back": "The AI encountered an error generating flashcards. Please try again."
+        }]
     }
     return json.dumps(fallback_json)

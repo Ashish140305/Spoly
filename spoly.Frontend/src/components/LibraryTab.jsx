@@ -21,7 +21,6 @@ import {
   Headphones,
   Workflow,
   Mic,
-  Wand2,
   PenTool,
   Star,
   List,
@@ -126,7 +125,6 @@ const DiagramThumbnail = ({ graphCode, isDarkMode }) => {
   const code = String(graphCode || "").toLowerCase();
   const isSeq = code.includes("sequencediagram");
   const isMindmap = code.includes("mindmap");
-  const isERD = code.includes("erdiagram");
 
   const baseStyle = `absolute inset-0 w-full h-full object-cover opacity-[0.04] dark:opacity-[0.08] pointer-events-none transition-transform duration-700 group-hover:scale-105 ${isDarkMode ? "text-indigo-400" : "text-indigo-600"}`;
 
@@ -311,9 +309,11 @@ export default function LibraryTab({
   const [localFolders, setLocalFolders] = useState(folders);
   const [activeFilters, setActiveFilters] = useState([]);
 
-  // Multi-Select State
   const [selectedNoteIds, setSelectedNoteIds] = useState([]);
   const [showBulkFolderMenu, setShowBulkFolderMenu] = useState(false);
+
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
 
   useEffect(() => {
     let updated = [...localFolders];
@@ -327,7 +327,6 @@ export default function LibraryTab({
   const activeFolder =
     localFolders.find((f) => f.id === activeFolderId) || localFolders[0];
 
-  // Apply Search and Folder filters safely
   const safeSearchQuery = String(searchQuery || "").toLowerCase();
 
   let filteredNotesForLibrary = savedNotes.filter((n) => {
@@ -340,24 +339,28 @@ export default function LibraryTab({
     );
   });
 
-  // Apply Smart Filters
   if (activeFilters.includes("Audio Logs"))
-    filteredNotesForLibrary = filteredNotesForLibrary.filter((n) => n.audioUrl);
+    filteredNotesForLibrary = filteredNotesForLibrary.filter(
+      (n) => n.audioUrl || String(n.summary).toLowerCase().includes("audio"),
+    );
   if (activeFilters.includes("Action Items"))
     filteredNotesForLibrary = filteredNotesForLibrary.filter(
-      (n) => n.items > 0,
+      (n) =>
+        n.items > 0 || String(n.summary).toLowerCase().includes("action item"),
     );
   if (activeFilters.includes("With Diagrams"))
-    filteredNotesForLibrary = filteredNotesForLibrary.filter((n) => n.graph);
+    filteredNotesForLibrary = filteredNotesForLibrary.filter(
+      (n) => n.graph || n.diagram || (n.graphs && n.graphs.length > 0),
+    );
   if (activeFilters.includes("Recent")) {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    filteredNotesForLibrary = filteredNotesForLibrary.filter(
-      (n) => new Date(n.date) >= oneWeekAgo,
-    );
+    filteredNotesForLibrary = filteredNotesForLibrary.filter((n) => {
+      const noteDate = new Date(n.date);
+      return !isNaN(noteDate) && noteDate >= oneWeekAgo;
+    });
   }
 
-  // 🌟 SORTING LOGIC (Pinned First, then Date)
   const sortedNotes = [...filteredNotesForLibrary].sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
@@ -369,7 +372,32 @@ export default function LibraryTab({
     return acc;
   }, {});
 
-  // 🌟 ACTIONS: Pinning & Selection
+  const startEditing = (e, note) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingNoteId(note.id);
+    setEditTitle(note.title);
+  };
+
+  const saveRename = (e, noteId) => {
+    e.stopPropagation();
+    if (editTitle.trim() === "") {
+      setEditingNoteId(null);
+      return;
+    }
+    setSavedNotes((prev) =>
+      prev.map((n) => (n.id === noteId ? { ...n, title: editTitle } : n)),
+    );
+    setEditingNoteId(null);
+    showToast("Note renamed successfully.");
+  };
+
+  const cancelRename = (e) => {
+    e.stopPropagation();
+    setEditingNoteId(null);
+    setEditTitle("");
+  };
+
   const togglePin = (e, noteId) => {
     e.stopPropagation();
     setSavedNotes((prev) =>
@@ -398,7 +426,6 @@ export default function LibraryTab({
     }
   };
 
-  // 🌟 ACTIONS: Bulk Commands
   const handleBulkDelete = () => {
     if (window.confirm(`Delete ${selectedNoteIds.length} notes permanently?`)) {
       setSavedNotes((prev) =>
@@ -450,11 +477,9 @@ export default function LibraryTab({
       exit={{ opacity: 0 }}
       className="flex flex-col w-full pb-32 relative min-h-screen bg-transparent"
     >
-      {/* 🌟 EXACT TEMPLATE-STYLE BANNER HEADER */}
       <div
         className={`relative w-full rounded-2xl px-8 py-8 mb-8 overflow-hidden shadow-sm transition-colors ${isDarkMode ? "bg-[#161B2A] border border-[#2A2F3D]" : "bg-[#0f172a] border border-transparent"}`}
       >
-        {/* Decorative Right Abstract Graphic (Database / Library Stack) */}
         <div
           className={`absolute right-0 top-0 bottom-0 w-1/2 opacity-30 pointer-events-none flex items-center justify-end pr-8 md:pr-12 ${isDarkMode ? "text-slate-600" : "text-slate-500"}`}
         >
@@ -489,17 +514,18 @@ export default function LibraryTab({
         </div>
       </div>
 
-      {/* 🌟 UNIFIED, NON-STICKY COMMAND BAR (Floats on Background) */}
-      <div className="flex flex-col gap-4 w-full mb-6 relative z-10">
-        {/* Top Row: Folders & Search */}
+      <div className="flex flex-col gap-4 w-full mb-6 relative z-50">
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 w-full">
-          {/* Merged Left Pill (Folder + New) */}
           <div
-            className={`flex items-center rounded-2xl border transition-colors ${isDarkMode ? "border-[#2A2F3D] bg-transparent" : "border-slate-200 bg-transparent"}`}
+            className={`flex items-center rounded-2xl border transition-colors ${isDarkMode ? "border-[#2A2F3D] bg-[#131722]" : "border-slate-200 bg-white"}`}
           >
             <div className="relative">
               <button
                 onClick={() => setShowFolderMenu(!showFolderMenu)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setShowFolderMenu(true);
+                }}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-l-2xl font-bold text-sm transition-all outline-none ${isDarkMode ? "text-slate-200 hover:bg-[#1A2033]" : "text-slate-700 hover:bg-slate-50"}`}
               >
                 <FolderOpen
@@ -554,11 +580,32 @@ export default function LibraryTab({
                                     f.id,
                                   );
                               }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                setDragOverFolder(f.id);
+                              }}
+                              onDragLeave={() => setDragOverFolder(null)}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const noteId = e.dataTransfer.getData("noteId");
+                                if (noteId && f.id !== "all") {
+                                  setSavedNotes((prev) =>
+                                    prev.map((n) =>
+                                      n.id.toString() === noteId
+                                        ? { ...n, folderId: f.id }
+                                        : n,
+                                    ),
+                                  );
+                                  showToast(`Moved to ${f.name}`);
+                                }
+                                setDragOverFolder(null);
+                                setShowFolderMenu(false);
+                              }}
                               onClick={() => {
                                 setActiveFolderId(f.id);
                                 setShowFolderMenu(false);
                               }}
-                              className={`w-full group flex items-center justify-between px-3 py-2 rounded-lg text-sm font-semibold transition-all outline-none ${isActive ? (isDarkMode ? "bg-[#1F263B] text-white" : "bg-slate-100 text-slate-900") : isDarkMode ? "text-slate-400 hover:bg-[#1A2033] hover:text-slate-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
+                              className={`w-full group flex items-center justify-between px-3 py-2 rounded-lg text-sm font-semibold transition-all outline-none ${isActive ? (isDarkMode ? "bg-[#1F263B] text-white" : "bg-slate-100 text-slate-900") : isDarkMode ? "text-slate-400 hover:bg-[#1A2033] hover:text-slate-200" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"} ${dragOverFolder === f.id ? "ring-2 ring-indigo-500 bg-indigo-500/20" : ""}`}
                             >
                               <div className="flex items-center gap-2.5 truncate">
                                 {!f.isDefault && (
@@ -603,7 +650,6 @@ export default function LibraryTab({
               </AnimatePresence>
             </div>
 
-            {/* Vertical Divider */}
             <div
               className={`w-px h-5 ${isDarkMode ? "bg-[#2A2F3D]" : "bg-slate-200"}`}
             ></div>
@@ -642,11 +688,9 @@ export default function LibraryTab({
             </AnimatePresence>
           </div>
 
-          {/* Right Side: Search & Views */}
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-            {/* Outlined Search Pill */}
             <div
-              className={`relative w-full sm:w-64 group flex items-center rounded-2xl border transition-colors ${isDarkMode ? "border-[#2A2F3D] focus-within:border-indigo-500/50 bg-transparent" : "border-slate-200 focus-within:border-indigo-300 bg-transparent"}`}
+              className={`relative w-full sm:w-64 group flex items-center rounded-2xl border transition-colors ${isDarkMode ? "border-[#2A2F3D] focus-within:border-indigo-500/50 bg-[#131722]" : "border-slate-200 focus-within:border-indigo-300 bg-white"}`}
             >
               <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                 <Search
@@ -671,14 +715,12 @@ export default function LibraryTab({
               )}
             </div>
 
-            {/* Vertical Divider */}
             <div
               className={`hidden sm:block w-px h-5 mx-1 shrink-0 ${isDarkMode ? "bg-[#2A2F3D]" : "bg-slate-200"}`}
             ></div>
 
-            {/* Outlined View Toggles Pill */}
             <div
-              className={`flex items-center p-1 rounded-2xl shrink-0 w-full sm:w-auto border ${isDarkMode ? "border-[#2A2F3D] bg-transparent" : "border-slate-200 bg-transparent"}`}
+              className={`flex items-center p-1 rounded-2xl shrink-0 w-full sm:w-auto border ${isDarkMode ? "border-[#2A2F3D] bg-[#131722]" : "border-slate-200 bg-white"}`}
             >
               <button
                 onClick={() => setNotesViewMode("grid")}
@@ -705,7 +747,6 @@ export default function LibraryTab({
           </div>
         </div>
 
-        {/* Bottom Row: Floating Filters */}
         <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar w-full mask-edges pb-1">
           <div
             className={`text-xs font-bold mr-1 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
@@ -716,7 +757,7 @@ export default function LibraryTab({
             <button
               key={filter.id}
               onClick={() => toggleFilter(filter.id)}
-              className={`px-3 py-1.5 rounded-2xl text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${activeFilters.includes(filter.id) ? (isDarkMode ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" : "bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm") : isDarkMode ? "bg-transparent border-[#2A2F3D] text-slate-400 hover:bg-[#1A2033]" : "bg-transparent border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              className={`px-3 py-1.5 rounded-2xl text-xs font-bold transition-all border shrink-0 flex items-center gap-1.5 ${activeFilters.includes(filter.id) ? (isDarkMode ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" : "bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm") : isDarkMode ? "bg-[#131722] border-[#2A2F3D] text-slate-400 hover:bg-[#1A2033]" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
             >
               {filter.icon} {filter.id}
             </button>
@@ -724,7 +765,7 @@ export default function LibraryTab({
         </div>
       </div>
 
-      {/* 🌟 GRID VIEW (With Pinning & Selection) */}
+      {/* 🚀 FIXED GRID VIEW CARDS */}
       {notesViewMode === "grid" && (
         <div className="relative z-10 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
           <AnimatePresence>
@@ -733,7 +774,7 @@ export default function LibraryTab({
               const isSelected = selectedNoteIds.includes(note.id);
 
               return (
-                <motion.button
+                <motion.div // Changed to motion.div to prevent Spacebar bugs
                   key={note.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -743,12 +784,12 @@ export default function LibraryTab({
                     e.dataTransfer.setData("noteId", note.id.toString())
                   }
                   onClick={() => setSelectedNote(note)}
-                  className={`group relative flex flex-col text-left transition-all duration-300 hover:z-20 hover:-translate-y-1.5 border rounded-[1.5rem] overflow-hidden min-h-[240px] p-6 cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-[#0b0f19] ${isSelected ? (isDarkMode ? "bg-[#1A2033] border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)]" : "bg-indigo-50 border-indigo-400 shadow-xl") : isDarkMode ? "bg-[#131722] border-[#2A2F3D] hover:border-[#3b435b] hover:shadow-[0_15px_40px_rgba(0,0,0,0.5)]" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl shadow-sm"}`}
+                  className={`group relative flex flex-col text-left transition-all duration-300 hover:z-20 hover:-translate-y-1.5 border rounded-[1.5rem] overflow-hidden min-h-[240px] p-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-[#0b0f19] ${isSelected ? (isDarkMode ? "bg-[#1A2033] border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)]" : "bg-indigo-50 border-indigo-400 shadow-xl") : isDarkMode ? "bg-[#131722] border-[#2A2F3D] hover:border-[#3b435b] hover:shadow-[0_15px_40px_rgba(0,0,0,0.5)]" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl shadow-sm"}`}
                 >
-                  {/* MULTI-SELECT CHECKBOX */}
+                  {/* Fixed Checkbox Positioning */}
                   <div
                     onClick={(e) => toggleSelection(e, note.id)}
-                    className={`absolute top-5 left-5 z-30 transition-all duration-200 ${isSelected ? "opacity-100 scale-100" : "opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100"}`}
+                    className={`absolute top-6 left-6 z-30 transition-all duration-200 ${isSelected ? "opacity-100 scale-100" : "opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100"}`}
                   >
                     {isSelected ? (
                       <CheckSquare
@@ -780,7 +821,8 @@ export default function LibraryTab({
                   />
                   <LibraryCardPattern index={index} />
 
-                  <div className="flex justify-between items-start relative z-10 w-full shrink-0 mb-5 pl-8">
+                  {/* Fixed Icon Padding to prevent collision with checkbox */}
+                  <div className="flex justify-between items-start relative z-10 w-full shrink-0 mb-5 pl-10">
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border transition-colors ${isDarkMode ? "bg-[#161B2A] border-[#2E364F] text-indigo-400" : "bg-white border-slate-200 text-indigo-600"}`}
@@ -795,7 +837,6 @@ export default function LibraryTab({
                       >
                         {note.date}
                       </span>
-                      {/* PIN BUTTON */}
                       <div
                         onClick={(e) => togglePin(e, note.id)}
                         className={`p-1.5 rounded-lg transition-all duration-200 ${note.isPinned ? (isDarkMode ? "text-amber-400 hover:bg-amber-400/10" : "text-amber-500 hover:bg-amber-50") : isDarkMode ? "opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-300 hover:bg-[#1A2033]" : "opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`}
@@ -810,11 +851,54 @@ export default function LibraryTab({
                   </div>
 
                   <div className="relative z-10 w-full flex flex-col flex-1 min-h-0 pl-1">
-                    <h3
-                      className={`text-lg font-extrabold tracking-tight mb-1.5 leading-tight truncate shrink-0 transition-colors ${isDarkMode ? "text-slate-100 group-hover:text-indigo-300" : "text-slate-800 group-hover:text-indigo-700"}`}
-                    >
-                      {note.title}
-                    </h3>
+                    {/* Fixed Key Propagation Bug */}
+                    {editingNoteId === note.id ? (
+                      <div
+                        className="flex items-center gap-2 mb-2 w-full"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          autoFocus
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") saveRename(e, note.id);
+                          }}
+                          onKeyUp={(e) => e.stopPropagation()}
+                          className={`flex-1 font-bold text-lg px-2 py-1 rounded outline-none border-2 focus:border-indigo-500 min-w-0 ${isDarkMode ? "bg-[#131722] border-[#2A2F3D] text-white" : "bg-slate-50 border-slate-200 text-slate-900"}`}
+                        />
+                        <button
+                          onClick={(e) => saveRename(e, note.id)}
+                          className="shrink-0 p-1.5 bg-emerald-500 text-white rounded hover:bg-emerald-600 transition-colors"
+                        >
+                          <CheckCircle2 size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => cancelRename(e)}
+                          className="shrink-0 p-1.5 bg-rose-500 text-white rounded hover:bg-rose-600 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-start gap-2 mb-1.5 w-full">
+                        <h3
+                          className={`text-lg font-extrabold tracking-tight leading-tight truncate flex-1 min-w-0 transition-colors ${isDarkMode ? "text-slate-100 group-hover:text-indigo-300" : "text-slate-800 group-hover:text-indigo-700"}`}
+                        >
+                          {note.title}
+                        </h3>
+                        <button
+                          onClick={(e) => startEditing(e, note)}
+                          className={`opacity-0 group-hover:opacity-100 shrink-0 p-1.5 rounded-md transition-all z-20 ${isDarkMode ? "bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300" : "bg-indigo-100 hover:bg-indigo-200 text-indigo-700"}`}
+                          title="Rename Note"
+                        >
+                          <PenTool size={16} />
+                        </button>
+                      </div>
+                    )}
+
                     <p
                       className={`text-sm line-clamp-2 mb-4 font-medium leading-relaxed ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
                     >
@@ -853,14 +937,13 @@ export default function LibraryTab({
                       )}
                     </div>
                   </div>
-                </motion.button>
+                </motion.div>
               );
             })}
           </AnimatePresence>
         </div>
       )}
 
-      {/* 🌟 DATA TABLE VIEW */}
       {notesViewMode === "table" && (
         <div className="relative z-10 w-full pt-2">
           {sortedNotes.length === 0 ? (
@@ -984,18 +1067,62 @@ export default function LibraryTab({
                             />
                           </td>
                           <td className="p-4 pl-0">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 w-full">
                               <div
                                 className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${isDarkMode ? "bg-[#131722] border-[#2E364F] text-slate-300" : "bg-white border-slate-200 text-slate-600"}`}
                               >
                                 <FileText size={14} />
                               </div>
-                              <div>
-                                <div
-                                  className={`font-bold text-sm truncate max-w-[200px] lg:max-w-[300px] ${isDarkMode ? "text-slate-100" : "text-slate-800"}`}
-                                >
-                                  {note.title}
-                                </div>
+                              <div className="flex-1 min-w-0">
+                                {editingNoteId === note.id ? (
+                                  <div
+                                    className="flex items-center gap-2 mt-1 w-full"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <input
+                                      autoFocus
+                                      value={editTitle}
+                                      onChange={(e) =>
+                                        setEditTitle(e.target.value)
+                                      }
+                                      onClick={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => {
+                                        e.stopPropagation();
+                                        if (e.key === "Enter")
+                                          saveRename(e, note.id);
+                                      }}
+                                      onKeyUp={(e) => e.stopPropagation()}
+                                      className={`flex-1 font-bold text-sm px-2 py-1 rounded outline-none border-2 focus:border-indigo-500 min-w-0 ${isDarkMode ? "bg-[#131722] border-[#2A2F3D] text-white" : "bg-white border-slate-200 text-slate-900"}`}
+                                    />
+                                    <button
+                                      onClick={(e) => saveRename(e, note.id)}
+                                      className="shrink-0 p-1 rounded bg-emerald-500 text-white hover:bg-emerald-600"
+                                    >
+                                      <CheckCircle2 size={14} />
+                                    </button>
+                                    <button
+                                      onClick={(e) => cancelRename(e)}
+                                      className="shrink-0 p-1 rounded bg-rose-500 text-white hover:bg-rose-600"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between gap-2 w-full max-w-[200px] lg:max-w-[300px]">
+                                    <div
+                                      className={`font-bold text-sm truncate flex-1 ${isDarkMode ? "text-slate-100" : "text-slate-800"}`}
+                                    >
+                                      {note.title}
+                                    </div>
+                                    <button
+                                      onClick={(e) => startEditing(e, note)}
+                                      className={`opacity-0 group-hover:opacity-100 shrink-0 p-1 rounded-md transition-all ${isDarkMode ? "bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300" : "bg-indigo-100 hover:bg-indigo-200 text-indigo-700"}`}
+                                      title="Rename Note"
+                                    >
+                                      <PenTool size={14} />
+                                    </button>
+                                  </div>
+                                )}
                                 {note.audioUrl && (
                                   <div
                                     className={`text-[10px] font-bold mt-0.5 flex items-center gap-1 ${isDarkMode ? "text-purple-400" : "text-purple-600"}`}
@@ -1076,7 +1203,7 @@ export default function LibraryTab({
         </div>
       )}
 
-      {/* 🌟 TIMELINE VIEW */}
+      {/* 🚀 FIXED TIMELINE VIEW */}
       {notesViewMode === "timeline" && (
         <div className="relative z-10 w-full space-y-8 pl-4 py-4">
           {Object.keys(groupedNotesByDate).length === 0 && (
@@ -1122,19 +1249,18 @@ export default function LibraryTab({
                 {dateNotes.map((note) => {
                   const safeTags = Array.isArray(note.tags) ? note.tags : [];
                   return (
-                    <button
+                    <div // Changed from <button> to <div> to prevent Spacebar bugs
                       key={note.id}
                       draggable
                       onDragStart={(e) =>
                         e.dataTransfer.setData("noteId", note.id.toString())
                       }
                       onClick={() => setSelectedNote(note)}
-                      className={`w-full focus:outline-none group flex flex-col md:flex-row md:items-center text-left gap-4 p-4 rounded-2xl border transition-all cursor-grab active:cursor-grabbing hover:-translate-y-0.5 relative overflow-hidden ${isDarkMode ? "bg-[#131722] border-[#2A2F3D] hover:border-indigo-500/50 hover:shadow-lg" : "bg-white border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md"}`}
+                      className={`w-full focus:outline-none group flex flex-col md:flex-row md:items-center text-left gap-4 p-4 rounded-2xl border transition-all cursor-pointer active:cursor-grabbing hover:-translate-y-0.5 relative overflow-hidden ${isDarkMode ? "bg-[#131722] border-[#2A2F3D] hover:border-indigo-500/50 hover:shadow-lg" : "bg-white border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md"}`}
                     >
                       <div
                         className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity`}
                       ></div>
-
                       <div
                         className={`w-10 h-10 ml-2 rounded-xl shrink-0 flex items-center justify-center border transition-colors ${isDarkMode ? "bg-[#1A2033] text-indigo-400 border-[#2E364F] group-hover:text-indigo-300" : "bg-slate-50 text-indigo-600 border-slate-200 group-hover:bg-indigo-50"}`}
                       >
@@ -1142,23 +1268,61 @@ export default function LibraryTab({
                       </div>
 
                       <div className="flex-1 pr-4 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {note.isPinned && (
-                            <Star
-                              size={12}
-                              className={
-                                isDarkMode
-                                  ? "text-amber-400 fill-amber-400"
-                                  : "text-amber-500 fill-amber-500"
-                              }
-                            />
-                          )}
-                          <h4
-                            className={`font-bold text-sm truncate transition-colors ${isDarkMode ? "text-slate-100 group-hover:text-white" : "text-slate-800 group-hover:text-slate-900"}`}
+                        {editingNoteId === note.id ? (
+                          <div
+                            className="flex items-center gap-2 mb-1 w-full"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {note.title}
-                          </h4>
-                        </div>
+                            <input
+                              autoFocus
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === "Enter") saveRename(e, note.id);
+                              }}
+                              onKeyUp={(e) => e.stopPropagation()}
+                              className={`flex-1 font-bold text-sm px-2 py-1 rounded outline-none border-2 focus:border-indigo-500 min-w-0 ${isDarkMode ? "bg-[#131722] border-[#2A2F3D] text-white" : "bg-white border-slate-200 text-slate-900"}`}
+                            />
+                            <button
+                              onClick={(e) => saveRename(e, note.id)}
+                              className="shrink-0 p-1 rounded bg-emerald-500 text-white hover:bg-emerald-600"
+                            >
+                              <CheckCircle2 size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => cancelRename(e)}
+                              className="shrink-0 p-1 rounded bg-rose-500 text-white hover:bg-rose-600"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2 mb-1 w-full">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {note.isPinned && (
+                                <Star
+                                  size={12}
+                                  className={`shrink-0 ${isDarkMode ? "text-amber-400 fill-amber-400" : "text-amber-500 fill-amber-500"}`}
+                                />
+                              )}
+                              <h4
+                                className={`font-bold text-sm truncate transition-colors ${isDarkMode ? "text-slate-100 group-hover:text-white" : "text-slate-800 group-hover:text-slate-900"}`}
+                              >
+                                {note.title}
+                              </h4>
+                            </div>
+                            <button
+                              onClick={(e) => startEditing(e, note)}
+                              className={`opacity-0 group-hover:opacity-100 shrink-0 p-1.5 rounded-md transition-all z-20 ${isDarkMode ? "bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300" : "bg-indigo-100 hover:bg-indigo-200 text-indigo-700"}`}
+                              title="Rename Note"
+                            >
+                              <PenTool size={14} />
+                            </button>
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-4 text-[11px] font-medium">
                           <span
                             className={`flex items-center gap-1 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
@@ -1204,7 +1368,7 @@ export default function LibraryTab({
                           </div>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1238,12 +1402,10 @@ export default function LibraryTab({
                   Selected
                 </span>
               </div>
-
               <div
                 className={`w-px h-6 mx-1 ${isDarkMode ? "bg-[#2A2F3D]" : "bg-slate-200"}`}
               ></div>
 
-              {/* Bulk Actions */}
               <div className="relative">
                 <button
                   onClick={() => setShowBulkFolderMenu(!showBulkFolderMenu)}
@@ -1280,18 +1442,15 @@ export default function LibraryTab({
               >
                 <Download size={14} /> Export
               </button>
-
               <button
                 onClick={handleBulkDelete}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${isDarkMode ? "text-red-400 hover:bg-red-500/10" : "text-red-500 hover:bg-red-50"}`}
               >
                 <Trash2 size={14} /> Delete
               </button>
-
               <div
                 className={`w-px h-6 mx-1 ${isDarkMode ? "bg-[#2A2F3D]" : "bg-slate-200"}`}
               ></div>
-
               <button
                 onClick={() => setSelectedNoteIds([])}
                 className={`p-2 rounded-xl transition-all ${isDarkMode ? "text-slate-500 hover:bg-[#1A2033] hover:text-slate-300" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"}`}
