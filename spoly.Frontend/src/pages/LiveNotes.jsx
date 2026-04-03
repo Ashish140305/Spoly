@@ -104,7 +104,6 @@ const parseBackendDiagrams = (diagramString) => {
         );
         if (match) generatedGraph = match[1];
 
-        // GLOBAL STRIPPING
         generatedGraph = generatedGraph
           .replace(/\x60\x60\x60/g, "")
           .replace(/^---[\s\S]*?---/g, "")
@@ -115,7 +114,6 @@ const parseBackendDiagrams = (diagramString) => {
 
         const lowerGraph = generatedGraph.toLowerCase();
 
-        // ROBUST TYPE-SPECIFIC SANITIZERS
         if (
           lowerGraph.startsWith("graph") ||
           lowerGraph.startsWith("flowchart")
@@ -123,55 +121,18 @@ const parseBackendDiagrams = (diagramString) => {
           generatedGraph = generatedGraph
             .replace(/(graph|flowchart)\s+([A-Z]{2,})\s+(.+)/gim, "$1 $2\n$3")
             .replace(/\|[^|]+\|/g, "")
-            .replace(/([^-\s])\s*->\s*([^-\s])/g, "$1 --> $2")
             .replace(/->>/g, "-->")
             .replace(/([A-Za-z0-9_\]])\s*:\s*[^"'\n]+/g, "$1")
             .replace(/\[\[/g, "[")
             .replace(/\]\]/g, "]")
-            .replace(/\(\(\(/g, "((")
-            .replace(/\)\)\)/g, "))")
-            .replace(/\{\{/g, "{")
-            .replace(/\}\}/g, "}")
-            .replace(/【/g, "[")
-            .replace(/】/g, "]")
-            .replace(/endsubgraph/gi, "end\nsubgraph")
-            .replace(/([\]\)"'}])\s*\bsubgraph\b/gi, "$1\nsubgraph")
-            .replace(/\b(end)([A-Za-z0-9_\[\{])/gi, "$1\n$2")
-            .replace(/([\]\)"'}])\s*\bend\b/gi, "$1\nend")
-            .replace(/(["'])(.*?)(["'])/g, (match, p1, innerText, p3) => {
-              let safeText = innerText
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/["'\\[\]{}]/g, "")
-                .trim();
-              return `"${safeText}"`;
-            });
-
-          const fcLines = generatedGraph.split("\n");
-          generatedGraph = fcLines
-            .map((line) => {
-              return line.replace(/\u00A0/g, " ").trim();
-            })
-            .filter((line) => {
-              if (!line) return false;
-              if (
-                /^(flowchart|graph|subgraph|end|style|class|classDef|click)\b/i.test(
-                  line,
-                )
-              )
-                return true;
-              if (
-                line.includes("-->") ||
-                line.includes("---") ||
-                line.includes("-.-") ||
-                line.includes("==>")
-              )
-                return true;
-              if (/^[A-Za-z0-9_]+\s*(\[|\{|\(|\>).+(\]|\}|\)|\>)$/.test(line))
-                return true;
-              return false;
-            })
-            .join("\n");
+            .replace(/\(\(/g, "(")
+            .replace(/\)\)/g, ")")
+            .replace(/\b(end)([A-Za-z0-9_\[])/gi, "$1\n$2")
+            .replace(
+              /\[(.*?)\]/g,
+              (match, innerText) =>
+                `["${innerText.replace(/["'\\[\]:]/g, "").trim()}"]`,
+            );
         } else if (lowerGraph.startsWith("gantt")) {
           generatedGraph =
             "timeline\n  title Timeline Overview\n  Processing\n    Data Extracted";
@@ -364,15 +325,6 @@ const pageVariants = {
 const formatGeneratedNotes = (text, isDarkMode) => {
   if (!text) return "No notes returned from backend.";
 
-  // SAFEGUARD: Ensure text is always a string before splitting to prevent React runtime errors
-  if (typeof text !== "string") {
-    try {
-      text = JSON.stringify(text, null, 2);
-    } catch (e) {
-      text = String(text);
-    }
-  }
-
   return text.split("\n").map((line, index) => {
     const trimmedLine = line.trim();
     if (!trimmedLine) return <div key={index} className="h-3"></div>;
@@ -540,6 +492,9 @@ export default function LiveNotes() {
   const localAudioChunks = useRef([]);
   const extensionAudioChunksRef = useRef([]);
 
+  const chunkIntervalRef = useRef(null);
+
+  // 🚀 THE IRON SHIELD
   const isFinalizingRef = useRef(false);
 
   const fileInputRef = useRef(null);
@@ -611,23 +566,9 @@ export default function LiveNotes() {
       if (response.ok) {
         if (isFinalizingRef.current) return;
         const data = await response.json();
-
-        // 🚀 ALWAYS APPEND text so nothing is lost, and we only process raw new audio slices!
-        if (data.transcript) {
-          setTranscript((prev) => prev + (prev ? " " : "") + data.transcript);
-        }
-        if (data.notes) {
-          // SAFEGUARD: Ensure data.notes is safely appended even if backend returns an object/array
-          const safeNotesString =
-            typeof data.notes === "string"
-              ? data.notes
-              : JSON.stringify(data.notes);
-          setMeetingNotes((prev) => ({
-            ...prev,
-            summary:
-              prev.summary + (prev.summary ? "\n\n" : "") + safeNotesString,
-          }));
-        }
+        if (data.transcript) setTranscript(data.transcript);
+        if (data.notes)
+          setMeetingNotes((prev) => ({ ...prev, summary: data.notes }));
       }
     } catch (e) {
       console.error("Live chunk skipped due to rate limit/error.");
@@ -663,6 +604,26 @@ export default function LiveNotes() {
   };
 
   const handleStartLocalRecording = async () => {
+    // Clean up any previous recorder and stream before starting fresh
+    if (
+      localMediaRecorderRef.current &&
+      localMediaRecorderRef.current.state !== "inactive"
+    ) {
+      try {
+        localMediaRecorderRef.current.onstop = null;
+        localMediaRecorderRef.current.ondataavailable = null;
+        localMediaRecorderRef.current.stop();
+      } catch (e) {
+        // Ignore errors from stopping a dead recorder
+      }
+    }
+    localMediaRecorderRef.current = null;
+
+    // Stop any leftover audio stream tracks
+    if (audioStream) {
+      audioStream.getTracks().forEach((t) => t.stop());
+    }
+
     let stream = null;
     try {
       const constraints = {
@@ -676,8 +637,6 @@ export default function LiveNotes() {
       });
     } catch (err) {
       console.warn("Spoly: Mic denied", err);
-      showToast("Mic unavailable or denied.");
-      return;
     }
 
     setActiveTab("workspace");
@@ -693,6 +652,9 @@ export default function LiveNotes() {
     setEditableMermaids([]);
     setEditableFlashcards([]);
     setCurrentAudioUrl(null);
+    localAudioChunks.current = [];
+
+    if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
 
     if (stream) {
       setAudioStream(stream);
@@ -701,38 +663,33 @@ export default function LiveNotes() {
         options = { mimeType: "audio/webm" };
 
       const recorder = new MediaRecorder(stream, options);
-      localAudioChunks.current = [];
-      let headerChunk = null;
+      // Tag this recorder so onstop can detect if it's still current
+      const recorderSessionId = Date.now();
+      recorder._spolySessionId = recorderSessionId;
 
       recorder.ondataavailable = async (e) => {
         if (e.data && e.data.size > 0) {
-          // 🚀 1. Always save the raw data to the main array so the FINAL output is completely accurate
           localAudioChunks.current.push(e.data);
-
-          if (!headerChunk) {
-            // 🚀 2. Save the very first 10-second chunk
-            headerChunk = e.data;
-            // Send it directly to backend
-            await processAudioChunkWithBackend(e.data);
-          } else {
-            // 🚀 3. THE MAGIC FIX: Slice ONLY the first 15KB of the original chunk.
-            // This safely extracts the WebM/EBML Header without grabbing any repeating audio!
-            const safeHeader = headerChunk.slice(0, 15000);
-
-            // 🚀 4. Stitch the tiny header onto the new audio slice and send it.
-            // The file stays permanently tiny (~100KB), queue stays completely empty!
-            const chunkBlob = new Blob([safeHeader, e.data], {
-              type: "audio/webm",
-            });
-            await processAudioChunkWithBackend(chunkBlob);
-          }
+          const chunkBlob = new Blob(localAudioChunks.current, {
+            type: "audio/webm",
+          });
+          await processAudioChunkWithBackend(chunkBlob);
         }
       };
 
       recorder.onstop = async () => {
+        if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
+
+        // If a newer recording session replaced us, don't process stale data
+        if (
+          localMediaRecorderRef.current &&
+          localMediaRecorderRef.current._spolySessionId !== recorderSessionId
+        ) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
         try {
-          // 🚀 5. When the user clicks Stop, we stitch the FULL continuous array together
-          // This ensures the backend analyzes the COMPLETE lecture perfectly from scratch!
           const finalBlob = new Blob(localAudioChunks.current, {
             type: "audio/webm",
           });
@@ -747,12 +704,21 @@ export default function LiveNotes() {
           finishProcessing("Live Capture", null);
         } finally {
           stream.getTracks().forEach((t) => t.stop());
+          // Clear the ref so handleStopLocalRecording won't try to stop a dead recorder
+          if (
+            localMediaRecorderRef.current &&
+            localMediaRecorderRef.current._spolySessionId === recorderSessionId
+          ) {
+            localMediaRecorderRef.current = null;
+          }
         }
       };
 
-      // Emit precisely 10 seconds of isolated audio slices naturally
-      recorder.start(10000);
+      recorder.start(5000);
       localMediaRecorderRef.current = recorder;
+    } else {
+      showToast("Mic unavailable or denied.");
+      localMediaRecorderRef.current = null;
     }
   };
 
@@ -764,13 +730,24 @@ export default function LiveNotes() {
     } else {
       isFinalizingRef.current = true;
       setStatus("processing");
+      if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
 
+      const currentRecorder = localMediaRecorderRef.current;
       if (
-        localMediaRecorderRef.current &&
-        localMediaRecorderRef.current.state !== "inactive"
+        currentRecorder &&
+        currentRecorder.state !== "inactive"
       ) {
-        localMediaRecorderRef.current.requestData();
-        setTimeout(() => localMediaRecorderRef.current.stop(), 100);
+        currentRecorder.requestData();
+        setTimeout(() => {
+          try {
+            if (currentRecorder.state !== "inactive") {
+              currentRecorder.stop();
+            }
+          } catch (e) {
+            console.warn("Spoly: Error stopping recorder", e);
+            finishProcessing("Live Capture");
+          }
+        }, 100);
       } else {
         setTimeout(() => finishProcessing("Live Capture"), 2000);
       }
@@ -828,22 +805,23 @@ export default function LiveNotes() {
             if (decodedBlob && decodedBlob.size > 0) {
               extensionAudioChunksRef.current[index] = decodedBlob;
 
-              // 🚀 APPLY THE SAME HEADER SLICE FIX TO THE EXTENSION!
-              if (index === 0) {
-                await processAudioChunkWithBackend(decodedBlob);
-              } else {
-                const firstChunk = extensionAudioChunksRef.current[0];
-                const safeHeader = firstChunk.slice(0, 15000);
-                const chunkBlob = new Blob([safeHeader, decodedBlob], {
-                  type: "audio/webm",
-                });
-                await processAudioChunkWithBackend(chunkBlob);
-              }
+              if (!extensionAudioChunksRef.current[0]) return;
+
+              const validChunks = extensionAudioChunksRef.current.filter(
+                (b) => b,
+              );
+              const accumulatedBlob = new Blob(validChunks, {
+                type: "audio/webm",
+              });
+              processAudioChunkWithBackend(accumulatedBlob);
             }
           } catch (err) {}
         };
         processBase64();
-      } else if (
+      }
+
+      // 🚀 THE FIX: We trigger finalization explicitly on STOPPED.
+      else if (
         type === "SPOLY_RECORDING_STOPPED" ||
         type === "SPOLY_UPLOAD_COMPLETE"
       ) {
@@ -871,7 +849,7 @@ export default function LiveNotes() {
             );
             finishProcessing(capturedTitleRef.current || "Live Capture");
           }
-        }, 800);
+        }, 800); // 800ms Buffer to catch the very last slice
       }
     };
     window.addEventListener("message", handleMessage);
@@ -942,6 +920,8 @@ export default function LiveNotes() {
     setIsExtensionActive(false);
     setIsWidgetDeployed(false);
     setAudioStream(null);
+    // Reset the finalizing guard so subsequent recordings can start
+    isFinalizingRef.current = false;
     showToast(
       processingType === "image"
         ? "Whiteboard Converted Successfully!"
@@ -1190,6 +1170,27 @@ export default function LiveNotes() {
   };
 
   const handleReset = () => {
+    // Stop any lingering recorder before resetting
+    if (
+      localMediaRecorderRef.current &&
+      localMediaRecorderRef.current.state !== "inactive"
+    ) {
+      try {
+        localMediaRecorderRef.current.onstop = null;
+        localMediaRecorderRef.current.ondataavailable = null;
+        localMediaRecorderRef.current.stop();
+      } catch (e) {
+        // Ignore
+      }
+    }
+    localMediaRecorderRef.current = null;
+    localAudioChunks.current = [];
+
+    // Stop any lingering audio stream
+    if (audioStream) {
+      audioStream.getTracks().forEach((t) => t.stop());
+    }
+
     isFinalizingRef.current = false;
     setStatus("idle");
     setTranscript("");
@@ -1209,6 +1210,7 @@ export default function LiveNotes() {
     setContextTheme(null);
     capturedTitleRef.current = "";
     extensionAudioChunksRef.current = [];
+    if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
   };
 
   return (
@@ -1957,6 +1959,7 @@ export default function LiveNotes() {
                         </div>
                         <button
                           onClick={() => {
+                            isFinalizingRef.current = false;
                             setSelectedNote(savedNotes[0]);
                             setStatus("idle");
                           }}

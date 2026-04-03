@@ -8,7 +8,7 @@ sql for clerk
 
 create database spoyl;
 CREATE TABLE users (
-    clerk_id VARCHAR(255) PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     first_name VARCHAR(255),
     last_name VARCHAR(255),
@@ -18,3 +18,44 @@ CREATE TABLE users (
 to see new users
 USE spoly_db;
 SELECT * FROM users;
+
+for saved ntes
+
+CREATE TABLE IF NOT EXISTS notes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,  -- Links to your users table
+    title VARCHAR(255) DEFAULT 'Untitled Note',
+    source_type ENUM('audio', 'youtube', 'text') NOT NULL,
+    source_reference VARCHAR(500), -- YouTube URL or filename
+    original_transcript LONGTEXT,
+    generated_notes LONGTEXT,
+    diagram_and_flashcards JSON, -- Stores your Mermaid strings and flashcard data
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+for templetes
+
+CREATE TABLE IF NOT EXISTS templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL, 
+    template_name VARCHAR(100) NOT NULL,
+    system_prompt TEXT NOT NULL, -- The actual instruction sent to the LLM
+    is_public BOOLEAN DEFAULT FALSE, -- If you want community templates later
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+folder database
+
+CREATE TABLE IF NOT EXISTS folders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    folder_name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- You would then add a `folder_id INT` column to your `notes` table 
+-- to establish a relationship.

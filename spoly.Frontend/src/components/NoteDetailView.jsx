@@ -56,15 +56,6 @@ const Flashcard = ({ front, back, isDarkMode }) => {
 const formatGeneratedNotes = (text, isDarkMode) => {
   if (!text) return "No notes available.";
 
-  // SAFEGUARD: Ensure text is safely converted to a string before splitting
-  if (typeof text !== "string") {
-    try {
-      text = JSON.stringify(text, null, 2);
-    } catch (e) {
-      text = String(text);
-    }
-  }
-
   return text.split("\n").map((line, index) => {
     const trimmedLine = line.trim();
     if (!trimmedLine) return <div key={index} className="h-3"></div>;
