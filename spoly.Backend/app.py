@@ -6,6 +6,7 @@ load_dotenv()
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+
 # 🚀 FIX: Import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from svix.webhooks import Webhook, WebhookVerificationError
@@ -32,22 +33,26 @@ DB_CONFIG = {
     "user": DB_USER,
     "password": DB_PASSWORD,
     "database": DB_NAME,
-    "port": DB_PORT
+    "port": DB_PORT,
 }
 
 # ---------------- ROUTES ----------------
 
 app.include_router(notes.router, prefix="/api/notes", tags=["Notes"])
 
+
 @app.get("/")
 def home():
     return {"message": "Spoly Notes Backend Running"}
+
 
 @app.get("/api/webhooks/clerk")
 def webhook_test():
     return {"message": "Webhook endpoint. Use POST."}
 
+
 # ---------------- CLERK WEBHOOK ----------------
+
 
 @app.post("/api/webhooks/clerk")
 async def clerk_webhook(request: Request):
@@ -69,15 +74,18 @@ async def clerk_webhook(request: Request):
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
             INSERT INTO users (clerk_id, email, first_name, last_name)
             VALUES (%s, %s, %s, %s)
-            """, (
-                data.get("id"),
-                data.get("email_addresses", [{}])[0].get("email_address", ""),
-                data.get("first_name", ""),
-                data.get("last_name", "")
-            ))
+            """,
+                (
+                    data.get("id"),
+                    data.get("email_addresses", [{}])[0].get("email_address", ""),
+                    data.get("first_name", ""),
+                    data.get("last_name", ""),
+                ),
+            )
 
             conn.commit()
 
@@ -85,7 +93,7 @@ async def clerk_webhook(request: Request):
             print("DB ERROR:", e)
 
         finally:
-            if 'conn' in locals() and conn.is_connected():
+            if "conn" in locals() and conn.is_connected():
                 cursor.close()
                 conn.close()
 
