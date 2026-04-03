@@ -29,7 +29,7 @@ async def generate_notes(
 
         # 🚀 FIX 1: Offload Whisper to a background thread.
         # This prevents the backend from freezing when chunks arrive back-to-back.
-        text = await asyncio.to_thread(speech_to_text, audio_bytes)
+        text = await asyncio.to_thread(speech_to_text, audio_bytes, file.filename)
 
         if not text or len(text.strip()) < 5:
             return {
@@ -70,6 +70,34 @@ async def generate_notes(
             "transcript": "",
             "notes": "",
             "diagram": '{"diagrams": [], "flashcards": []}',
+        }
+
+
+@router.post("/process-text")
+async def process_raw_text(
+    transcript: str = Form(...), template: str = Form("Standard Study Notes")
+):
+    try:
+        if not transcript or len(transcript.strip()) < 10:
+            raise Exception("Transcript is too short or empty.")
+
+        print(
+            f"🧠 Processing Raw Text via Extension Hack ({len(transcript)} chars)",
+            flush=True,
+        )
+
+        # Skip audio/YouTube fetching entirely, just run the AI pipeline!
+        result = await asyncio.to_thread(run_pipeline, transcript, template)
+        result["transcript"] = transcript
+        return result
+
+    except Exception as e:
+        print("🚨 Text Processing Error:", e, flush=True)
+        return {
+            "error": str(e),
+            "transcript": transcript,
+            "notes": f"Failed to process text: {str(e)}",
+            "diagram": "API FAILED",
         }
 
 

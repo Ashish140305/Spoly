@@ -23,6 +23,7 @@ import {
   Search,
   UserPlus,
   LogOut,
+  ListChecks,
 } from "lucide-react";
 
 export const initialFolders = [
@@ -262,5 +263,13 @@ export const templatesDB = [
     desc: "Capture reasons for leaving, company feedback, and transitions.",
     icon: <LogOut size={24} />,
     theme: "amber",
+  },
+  {
+    id: 27,
+    name: "Minutes of Meeting",
+    category: "Business",
+    desc: "Capture the summary, importance, key decisions, and action items of a meeting.",
+    icon: <ListChecks size={24} />,
+    theme: "emerald", // You can change this to "blue", "purple", "amber", or "rose"
   },
 ];

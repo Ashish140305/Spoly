@@ -15,11 +15,11 @@ const Flashcard = ({ front, back, isDarkMode }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   return (
     <div
-      className="perspective-1000 w-full h-64 cursor-pointer group"
+      className="w-full h-64 cursor-pointer perspective-1000 group"
       onClick={() => setIsFlipped(!isFlipped)}
     >
       <motion.div
-        className="w-full h-full relative preserve-3d transition-all duration-500 shadow-sm group-hover:shadow-md rounded-2xl"
+        className="relative w-full h-full transition-all duration-500 shadow-sm preserve-3d group-hover:shadow-md rounded-2xl"
         animate={{ rotateY: isFlipped ? 180 : 0 }}
       >
         <div
@@ -51,6 +51,48 @@ const Flashcard = ({ front, back, isDarkMode }) => {
       </motion.div>
     </div>
   );
+};
+
+const generateMarkdown = (note) => {
+  let md = `# ${note.title || "Spoly Note"}\n\n`;
+  md += `**Date:** ${note.date} | **Duration:** ${note.duration || "00:00"}\n\n`;
+  md += `---\n\n`;
+
+  if (note.summary) {
+    md += `## Notes\n\n`;
+    md += `${note.summary}\n\n`;
+  }
+
+  let validDiagrams = [];
+  if (note.graphs && Array.isArray(note.graphs) && note.graphs.length > 0) {
+    validDiagrams = note.graphs;
+  } else if (
+    note.graph &&
+    typeof note.graph === "string" &&
+    note.graph !== "API FAILED"
+  ) {
+    validDiagrams = [{ title: "Saved Flowchart", code: note.graph }];
+  }
+
+  if (validDiagrams.length > 0) {
+    md += `## Diagrams\n\n`;
+    validDiagrams.forEach((diag) => {
+      md += `### ${diag.title}\n\n`;
+      md += "```mermaid\n";
+      md += `${diag.code}\n`;
+      md += "```\n\n";
+    });
+  }
+
+  if (note.flashcards && note.flashcards.length > 0) {
+    md += `## Flashcards\n\n`;
+    note.flashcards.forEach((card, i) => {
+      md += `**Q${i + 1}:** ${card.front}\n\n`;
+      md += `**A${i + 1}:** ${card.back}\n\n`;
+    });
+  }
+
+  return md;
 };
 
 const formatGeneratedNotes = (text, isDarkMode) => {
@@ -122,7 +164,42 @@ export default function NoteDetailView({
   const [activeTab, setActiveTab] = useState("notes");
 
   const handleExport = () => {
-    showToast(`Exported as ${exportFormat.toUpperCase()}`);
+    if (!selectedNote) return;
+
+    try {
+      // Generate the markdown content
+      const content = generateMarkdown(selectedNote);
+
+      // Determine extension based on settings (defaults to .md)
+      const isTxt = exportFormat === "txt" || exportFormat === "text";
+      const fileExtension = isTxt ? "txt" : "md";
+      const mimeType = isTxt ? "text/plain" : "text/markdown";
+
+      // Create a Blob containing the text data
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+
+      // Create a hidden anchor tag to trigger the download
+      const a = document.createElement("a");
+      a.href = url;
+
+      // Sanitize the title to make a clean filename (removes special chars)
+      const safeTitle = (selectedNote.title || "spoly_note")
+        .replace(/[^a-z0-9]/gi, "_")
+        .toLowerCase();
+      a.download = `${safeTitle}.${fileExtension}`;
+
+      // Trigger download and cleanup
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast(`Exported as .${fileExtension.toUpperCase()}`);
+    } catch (err) {
+      console.error("Export failed:", err);
+      showToast("Failed to export notes.");
+    }
   };
 
   if (!selectedNote) return null;
@@ -146,7 +223,7 @@ export default function NoteDetailView({
     selectedNote.flashcards && selectedNote.flashcards.length > 0;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-20">
+    <div className="max-w-6xl pb-20 mx-auto space-y-6">
       <div
         className={`p-6 rounded-2xl border shadow-sm flex flex-wrap gap-6 items-center justify-between ${isDarkMode ? "bg-[#131722] border-[#2A2F3D]" : "bg-white border-slate-200"}`}
       >
@@ -155,13 +232,13 @@ export default function NoteDetailView({
             className={`flex items-center gap-2 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
           >
             <Calendar size={16} className="text-blue-500" />
-            <span className="font-medium text-sm">{selectedNote.date}</span>
+            <span className="text-sm font-medium">{selectedNote.date}</span>
           </div>
           <div
             className={`flex items-center gap-2 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
           >
             <Clock size={16} className="text-amber-500" />
-            <span className="font-medium text-sm">
+            <span className="text-sm font-medium">
               {selectedNote.duration || "00:00"} Duration
             </span>
           </div>
@@ -216,7 +293,7 @@ export default function NoteDetailView({
             {formatGeneratedNotes(selectedNote.summary, isDarkMode)}
           </div>
         ) : activeTab === "flashcards" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full h-full p-2">
+          <div className="grid w-full h-full grid-cols-1 gap-6 p-2 md:grid-cols-2 lg:grid-cols-3">
             {selectedNote.flashcards.map((card, index) => (
               <Flashcard
                 key={index}
@@ -227,7 +304,7 @@ export default function NoteDetailView({
             ))}
           </div>
         ) : (
-          <div className="flex-1 overflow-auto custom-scrollbar w-full h-full space-y-8 pr-2">
+          <div className="flex-1 w-full h-full pr-2 space-y-8 overflow-auto custom-scrollbar">
             {validDiagrams.map((diag, index) => (
               <div
                 key={index}

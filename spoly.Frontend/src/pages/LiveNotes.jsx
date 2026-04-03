@@ -233,11 +233,11 @@ const Flashcard = ({ front, back, isDarkMode }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   return (
     <div
-      className="perspective-1000 w-full h-64 cursor-pointer group"
+      className="w-full h-64 cursor-pointer perspective-1000 group"
       onClick={() => setIsFlipped(!isFlipped)}
     >
       <motion.div
-        className="w-full h-full relative preserve-3d transition-all duration-500 shadow-sm group-hover:shadow-md rounded-2xl"
+        className="relative w-full h-full transition-all duration-500 shadow-sm preserve-3d group-hover:shadow-md rounded-2xl"
         animate={{ rotateY: isFlipped ? 180 : 0 }}
       >
         <div
@@ -734,10 +734,7 @@ export default function LiveNotes() {
       if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
 
       const currentRecorder = localMediaRecorderRef.current;
-      if (
-        currentRecorder &&
-        currentRecorder.state !== "inactive"
-      ) {
+      if (currentRecorder && currentRecorder.state !== "inactive") {
         currentRecorder.requestData();
         setTimeout(() => {
           try {
@@ -1251,7 +1248,7 @@ export default function LiveNotes() {
         user={user}
       />
 
-      <main className="flex-1 flex flex-col relative z-10 overflow-y-auto overflow-x-hidden min-w-0">
+      <main className="relative z-10 flex flex-col flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
         <header
           className={`px-8 py-6 flex justify-between items-center border-b sticky top-0 z-30 transition-colors ${isDarkMode ? "bg-[#0b0f19]/80 backdrop-blur-md border-[#232a3b]" : "bg-white/30 backdrop-blur-md border-white/40"}`}
         >
@@ -1346,7 +1343,7 @@ export default function LiveNotes() {
                 <div
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors ${isDarkMode ? "bg-emerald-900/20 border border-emerald-800/50 text-emerald-400" : "bg-emerald-100 border border-emerald-200 text-emerald-700"}`}
                 >
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>{" "}
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>{" "}
                   Ready
                 </div>
               </>
@@ -1412,7 +1409,7 @@ export default function LiveNotes() {
                         exit={{ opacity: 0 }}
                         className="space-y-6"
                       >
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 pb-2">
+                        <div className="grid grid-cols-1 gap-6 pt-2 pb-2 md:grid-cols-2">
                           <motion.button
                             whileHover={{ scale: 1.02, y: -4 }}
                             whileTap={{ scale: 0.97 }}
@@ -1448,7 +1445,7 @@ export default function LiveNotes() {
                                 )}
                               </div>
                             </div>
-                            <div className="p-6 flex-1 flex flex-col w-full relative z-20">
+                            <div className="relative z-20 flex flex-col flex-1 w-full p-6">
                               <h3
                                 className={`text-xl font-bold mb-2 transition-colors ${isWidgetDeployed ? (isDarkMode ? "text-red-300" : "text-red-900") : isDarkMode ? "text-slate-100 group-hover:text-white" : "text-slate-800 group-hover:text-indigo-700"}`}
                               >
@@ -1488,7 +1485,7 @@ export default function LiveNotes() {
                                 <Mic size={32} />
                               </div>
                             </div>
-                            <div className="p-6 flex-1 flex flex-col w-full relative z-20">
+                            <div className="relative z-20 flex flex-col flex-1 w-full p-6">
                               <h3
                                 className={`text-xl font-bold mb-2 transition-colors ${isDarkMode ? "text-slate-100 group-hover:text-blue-400" : "text-slate-800 group-hover:text-blue-700"}`}
                               >
@@ -1504,7 +1501,7 @@ export default function LiveNotes() {
                           </motion.button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6">
+                        <div className="grid grid-cols-1 gap-6 pb-6 md:grid-cols-2">
                           <motion.div
                             whileHover={{ scale: 1.02, y: -4 }}
                             whileTap={{ scale: 0.97 }}
@@ -1558,7 +1555,7 @@ export default function LiveNotes() {
                                 />
                               </div>
                             </div>
-                            <div className="p-6 flex-1 flex flex-col w-full relative z-20">
+                            <div className="relative z-20 flex flex-col flex-1 w-full p-6">
                               <h3
                                 className={`text-xl font-bold mb-2 transition-colors ${isDarkMode ? "text-slate-100 group-hover:text-emerald-400" : "text-slate-800 group-hover:text-emerald-700"}`}
                               >
@@ -1602,7 +1599,7 @@ export default function LiveNotes() {
                                 <Youtube size={32} />
                               </div>
                             </div>
-                            <div className="p-6 flex-1 flex flex-col w-full relative z-20">
+                            <div className="relative z-20 flex flex-col flex-1 w-full p-6">
                               <h3
                                 className={`text-xl font-bold mb-3 transition-colors ${isDarkMode ? "text-slate-100 group-hover:text-red-400" : "text-slate-800 group-hover:text-red-600"}`}
                               >
@@ -1610,7 +1607,7 @@ export default function LiveNotes() {
                               </h3>
                               <form
                                 onSubmit={processYoutube}
-                                className="w-full relative mt-auto group/form"
+                                className="relative w-full mt-auto group/form"
                               >
                                 <input
                                   type="text"
@@ -1719,7 +1716,7 @@ export default function LiveNotes() {
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
-                        className="flex flex-col items-center justify-center py-10 gap-6 w-full max-w-lg mx-auto"
+                        className="flex flex-col items-center justify-center w-full max-w-lg gap-6 py-10 mx-auto"
                       >
                         <div
                           className={`w-16 h-16 rounded-full flex items-center justify-center shadow-inner mb-2 ${processingType === "youtube" ? (isDarkMode ? "bg-red-900/30 text-red-400" : "bg-red-100 text-red-600") : isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-100 text-blue-600"}`}
@@ -1732,8 +1729,8 @@ export default function LiveNotes() {
                             <FileAudio size={28} />
                           )}
                         </div>
-                        <div className="text-center w-full">
-                          <p className="font-bold text-lg tracking-tight mb-1 truncate px-4">
+                        <div className="w-full text-center">
+                          <p className="px-4 mb-1 text-lg font-bold tracking-tight truncate">
                             {fileName}
                           </p>
                           <p
@@ -1803,7 +1800,7 @@ export default function LiveNotes() {
                         {status !== "processing" && (
                           <button
                             onClick={handleStopLocalRecording}
-                            className="flex items-center gap-2 px-6 py-2 rounded-full bg-red-500 hover:bg-red-600 text-white font-bold transition-colors"
+                            className="flex items-center gap-2 px-6 py-2 font-bold text-white transition-colors bg-red-500 rounded-full hover:bg-red-600"
                           >
                             <Square size={14} fill="currentColor" /> Stop &
                             Generate
@@ -1812,7 +1809,7 @@ export default function LiveNotes() {
                       </div>
 
                       {status === "recording" && transcript && (
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 mt-2">
+                        <div className="flex-1 p-8 mt-2 overflow-y-auto custom-scrollbar">
                           <h3
                             className={`font-bold text-lg mb-2 flex items-center gap-2 ${isDarkMode ? "text-blue-400" : "text-blue-600"}`}
                           >
@@ -1847,7 +1844,7 @@ export default function LiveNotes() {
                       )}
 
                       {status === "processing" && (
-                        <div className="flex flex-col items-center justify-center flex-1 space-y-8 px-8 text-center relative overflow-hidden">
+                        <div className="relative flex flex-col items-center justify-center flex-1 px-8 space-y-8 overflow-hidden text-center">
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
                             <motion.div
                               animate={{ rotate: 360 }}
@@ -1880,12 +1877,12 @@ export default function LiveNotes() {
                           >
                             <Loader2
                               size={48}
-                              className="animate-spin text-blue-500"
+                              className="text-blue-500 animate-spin"
                             />
                           </motion.div>
 
                           <div>
-                            <h3 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500 mb-2">
+                            <h3 className="mb-2 text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">
                               Architecting your Notes...
                             </h3>
                             <p
@@ -1904,7 +1901,7 @@ export default function LiveNotes() {
                               exit={{ opacity: 0, y: -10 }}
                               className={`mt-8 max-w-md p-5 rounded-2xl border backdrop-blur-sm ${isDarkMode ? "bg-slate-800/50 border-slate-700/50 text-slate-300" : "bg-slate-50/80 border-slate-200 text-slate-700"}`}
                             >
-                              <p className="font-medium text-sm leading-relaxed">
+                              <p className="text-sm font-medium leading-relaxed">
                                 <Sparkles
                                   size={16}
                                   className="inline mr-2 text-amber-400"
@@ -1938,7 +1935,7 @@ export default function LiveNotes() {
                           className={`absolute -bottom-24 -left-24 w-96 h-96 blur-[100px] rounded-full ${isDarkMode ? "bg-teal-600/15" : "bg-white/0"}`}
                         ></div>
                       </div>
-                      <div className="relative z-20 p-8 flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="relative z-20 flex flex-col items-center justify-between gap-6 p-8 md:flex-row">
                         <div className="flex items-center gap-6">
                           <div
                             className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-inner ${isDarkMode ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-white/20 text-white border border-white/20"}`}
@@ -2016,7 +2013,7 @@ export default function LiveNotes() {
                           )}
                         </div>
                       ) : successView === "flashcards" ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full h-full p-2">
+                        <div className="grid w-full h-full grid-cols-1 gap-6 p-2 md:grid-cols-2 lg:grid-cols-3">
                           {editableFlashcards.map((card, index) => (
                             <Flashcard
                               key={index}
@@ -2027,7 +2024,7 @@ export default function LiveNotes() {
                           ))}
                         </div>
                       ) : (
-                        <div className="flex-1 overflow-auto custom-scrollbar w-full h-full space-y-8 pr-2">
+                        <div className="flex-1 w-full h-full pr-2 space-y-8 overflow-auto custom-scrollbar">
                           {editableMermaids.map((diag, index) => (
                             <div
                               key={index}
@@ -2050,7 +2047,7 @@ export default function LiveNotes() {
                       )}
                     </div>
 
-                    <div className="flex justify-center mt-12 pb-6">
+                    <div className="flex justify-center pb-6 mt-12">
                       <button
                         onClick={handleReset}
                         className={`group relative flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isDarkMode ? "bg-slate-800 text-white shadow-[0_0_30px_rgba(37,99,235,0.2)] hover:shadow-[0_0_50px_rgba(37,99,235,0.4)] dark:focus:ring-offset-[#0b0f19]" : "bg-white text-slate-800 shadow-xl border border-slate-200 hover:border-blue-300 hover:shadow-[0_20px_40px_rgba(37,99,235,0.15)]"}`}

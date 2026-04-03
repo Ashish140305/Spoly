@@ -10,9 +10,7 @@
     "storage",
     "notifications"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "host_permissions": ["<all_urls>", "*://*.youtube.com/*"],
   "commands": {
     "toggle-record": {
       "suggested_key": { "default": "Alt+Shift+R" },
