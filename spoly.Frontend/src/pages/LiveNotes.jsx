@@ -496,6 +496,7 @@ export default function LiveNotes() {
 
   // 🚀 THE IRON SHIELD
   const isFinalizingRef = useRef(false);
+  const isPausedRef = useRef(false);
 
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -766,6 +767,7 @@ export default function LiveNotes() {
 
   const pauseLocalRef = useRef((isPaused) => {
     if (isFinalizingRef.current) return;
+    isPausedRef.current = isPaused;
     setStatus(isPaused ? "paused" : "recording");
   });
 
