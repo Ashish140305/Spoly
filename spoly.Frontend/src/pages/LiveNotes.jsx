@@ -493,8 +493,6 @@ export default function LiveNotes() {
   const extensionAudioChunksRef = useRef([]);
 
   const chunkIntervalRef = useRef(null);
-
-  // 🚀 THE IRON SHIELD
   const isFinalizingRef = useRef(false);
   const isPausedRef = useRef(false);
 
@@ -526,6 +524,50 @@ export default function LiveNotes() {
   const [editableFlashcards, setEditableFlashcards] = useState([]);
   const [savedNotes, setSavedNotes] = useState([]);
 
+  // 🚀 Fetch notes from MongoDB on page load
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchMyNotes = async () => {
+      try {
+        const response = await fetch(
+          `${BACKEND_URL}/api/notes/user/${user.id}`,
+        );
+        const data = await response.json();
+
+        if (data.success && data.notes) {
+          const formattedNotes = data.notes.map((n) => {
+            const parsedDiagramData = JSON.parse(
+              n.diagram_data || '{"diagrams":[],"flashcards":[]}',
+            );
+            return {
+              id: n.id,
+              title: n.source_type,
+              folderId: "all",
+              date: new Date(n.created_at).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }),
+              duration: "Saved Note",
+              items: 0,
+              tags: ["AI"],
+              summary: n.generated_notes,
+              graphs: parsedDiagramData.diagrams || [],
+              flashcards: parsedDiagramData.flashcards || [],
+              audioUrl: null,
+            };
+          });
+          setSavedNotes(formattedNotes);
+        }
+      } catch (err) {
+        console.error("Failed to load notes from MongoDB", err);
+      }
+    };
+
+    fetchMyNotes();
+  }, [user]);
+
   useEffect(() => {
     let interval;
     if (status === "processing") {
@@ -549,8 +591,6 @@ export default function LiveNotes() {
     try {
       if (isFinalizingRef.current) return;
       if (!blob || blob.size < 100) return;
-
-      console.log(`⚡ Sending Chunk to Backend (${blob.size} bytes)...`);
 
       const formData = new FormData();
       formData.append("file", blob, "chunk.webm");
@@ -605,7 +645,6 @@ export default function LiveNotes() {
   };
 
   const handleStartLocalRecording = async () => {
-    // Clean up any previous recorder and stream before starting fresh
     if (
       localMediaRecorderRef.current &&
       localMediaRecorderRef.current.state !== "inactive"
@@ -614,13 +653,10 @@ export default function LiveNotes() {
         localMediaRecorderRef.current.onstop = null;
         localMediaRecorderRef.current.ondataavailable = null;
         localMediaRecorderRef.current.stop();
-      } catch (e) {
-        // Ignore errors from stopping a dead recorder
-      }
+      } catch (e) {}
     }
     localMediaRecorderRef.current = null;
 
-    // Stop any leftover audio stream tracks
     if (audioStream) {
       audioStream.getTracks().forEach((t) => t.stop());
     }
@@ -664,7 +700,6 @@ export default function LiveNotes() {
         options = { mimeType: "audio/webm" };
 
       const recorder = new MediaRecorder(stream, options);
-      // Tag this recorder so onstop can detect if it's still current
       const recorderSessionId = Date.now();
       recorder._spolySessionId = recorderSessionId;
 
@@ -681,7 +716,6 @@ export default function LiveNotes() {
       recorder.onstop = async () => {
         if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current);
 
-        // If a newer recording session replaced us, don't process stale data
         if (
           localMediaRecorderRef.current &&
           localMediaRecorderRef.current._spolySessionId !== recorderSessionId
@@ -705,7 +739,6 @@ export default function LiveNotes() {
           finishProcessing("Live Capture", null);
         } finally {
           stream.getTracks().forEach((t) => t.stop());
-          // Clear the ref so handleStopLocalRecording won't try to stop a dead recorder
           if (
             localMediaRecorderRef.current &&
             localMediaRecorderRef.current._spolySessionId === recorderSessionId
@@ -742,7 +775,6 @@ export default function LiveNotes() {
               currentRecorder.stop();
             }
           } catch (e) {
-            console.warn("Spoly: Error stopping recorder", e);
             finishProcessing("Live Capture");
           }
         }, 100);
@@ -817,10 +849,7 @@ export default function LiveNotes() {
           } catch (err) {}
         };
         processBase64();
-      }
-
-      // 🚀 THE FIX: We trigger finalization explicitly on STOPPED.
-      else if (
+      } else if (
         type === "SPOLY_RECORDING_STOPPED" ||
         type === "SPOLY_UPLOAD_COMPLETE"
       ) {
@@ -831,9 +860,6 @@ export default function LiveNotes() {
         setTimeout(() => {
           const validChunks = extensionAudioChunksRef.current.filter((b) => b);
           if (validChunks.length > 0) {
-            console.log(
-              `🚀 Packaging ${validChunks.length} chronological slices into Final Blob...`,
-            );
             const finalBlob = new Blob(validChunks, { type: "audio/webm" });
             const finalUrl = window.URL.createObjectURL(finalBlob);
             setCurrentAudioUrl(finalUrl);
@@ -843,12 +869,9 @@ export default function LiveNotes() {
               finalUrl,
             );
           } else {
-            console.warn(
-              "⚠️ No extension chunks were collected. Ending silently.",
-            );
             finishProcessing(capturedTitleRef.current || "Live Capture");
           }
-        }, 800); // 800ms Buffer to catch the very last slice
+        }, 800);
       }
     };
     window.addEventListener("message", handleMessage);
@@ -859,6 +882,7 @@ export default function LiveNotes() {
     setToast(message);
     setTimeout(() => setToast(null), 3000);
   };
+
   const formatTime = (sec) => {
     const m = Math.floor(sec / 60)
       .toString()
@@ -919,7 +943,6 @@ export default function LiveNotes() {
     setIsExtensionActive(false);
     setIsWidgetDeployed(false);
     setAudioStream(null);
-    // Reset the finalizing guard so subsequent recordings can start
     isFinalizingRef.current = false;
     showToast(
       processingType === "image"
@@ -935,7 +958,7 @@ export default function LiveNotes() {
       finalTitle = `[${activeAiTemplate.name}] ${finalTitle}`;
 
     const newNote = {
-      id: Date.now(),
+      id: Date.now().toString(),
       title: finalTitle,
       folderId: "all",
       date: new Date().toLocaleDateString("en-US", {
@@ -955,6 +978,26 @@ export default function LiveNotes() {
       audioUrl: overrideAudioUrl || currentAudioUrl,
     };
     setSavedNotes((prev) => [newNote, ...prev]);
+
+    // 🚀 Send the final output to MongoDB
+    if (user) {
+      const diagramDataToSave = JSON.stringify({
+        diagrams: fetchedData?.graphs || editableMermaids,
+        flashcards: fetchedData?.flashcards || editableFlashcards,
+      });
+
+      fetch(`${BACKEND_URL}/api/notes/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clerk_id: user.id,
+          source_type: finalTitle,
+          transcript: fetchedData?.transcript || transcript || "No transcript",
+          notes: fetchedData?.summary || meetingNotes.summary,
+          diagram_data: diagramDataToSave,
+        }),
+      }).catch((err) => console.error("MongoDB Save Error:", err));
+    }
   };
 
   const processAudioWithBackend = async (
@@ -968,11 +1011,6 @@ export default function LiveNotes() {
         return;
       }
 
-      console.log(
-        "🚀 Sending FINAL FULL audio to backend...",
-        audioBlob.size,
-        "bytes",
-      );
       const formData = new FormData();
       formData.append("file", audioBlob, "recording.webm");
       formData.append(
@@ -1092,11 +1130,21 @@ export default function LiveNotes() {
     }, 200);
   };
 
+  // 🚀 The Extension Proxy for YouTube
   const processYoutube = async (e) => {
     e.preventDefault();
     if (!youtubeUrl.trim()) return;
+
+    // Extract Video ID
+    const match = youtubeUrl.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+    if (!match) {
+      alert("Invalid YouTube URL.");
+      return;
+    }
+    const videoId = match[1];
+
     setProcessingType("youtube");
-    setFileName("Fetching YouTube Transcript...");
+    setFileName("Extension is fetching Transcript...");
     setStatus("uploading");
     setUploadProgress(0);
     isFinalizingRef.current = false;
@@ -1104,72 +1152,84 @@ export default function LiveNotes() {
     let progress = 0;
     if (uploadRef.current) clearInterval(uploadRef.current);
     uploadRef.current = setInterval(() => {
-      progress += Math.random() * 10;
-      setUploadProgress(Math.min(progress, 90));
+      progress += Math.random() * 5;
+      setUploadProgress(Math.min(progress, 40));
     }, 500);
 
-    try {
-      const formData = new FormData();
-      formData.append("url", youtubeUrl);
-      formData.append(
-        "template",
-        activeAiTemplateRef.current?.name || "AI Auto-Detect",
-      );
+    const handleYtResult = async (event) => {
+      if (event.data.type === "SPOLY_YT_RESULT") {
+        window.removeEventListener("message", handleYtResult);
 
-      const response = await fetch(`${BACKEND_URL}/api/notes/youtube`, {
-        method: "POST",
-        body: formData,
-      });
+        if (!event.data.success) {
+          clearInterval(uploadRef.current);
+          setStatus("idle");
+          alert("⚠️ Extension Failed to fetch transcript: " + event.data.error);
+          return;
+        }
 
-      clearInterval(uploadRef.current);
-      setUploadProgress(100);
-      setStatus("processing");
+        setFileName("AI is Analyzing Transcript...");
+        setUploadProgress(50);
 
-      if (!response.ok) {
-        throw new Error(
-          `Server returned Code ${response.status}. Did you restart the Python Backend after adding the new Route?`,
-        );
+        try {
+          const formData = new FormData();
+          formData.append("transcript", event.data.text);
+          formData.append(
+            "template",
+            activeAiTemplateRef.current?.name || "AI Auto-Detect",
+          );
+
+          const response = await fetch(
+            `${BACKEND_URL}/api/notes/process-text`,
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
+
+          clearInterval(uploadRef.current);
+          setUploadProgress(100);
+          setStatus("processing");
+
+          if (!response.ok)
+            throw new Error(`Server returned Code ${response.status}`);
+
+          const data = await response.json();
+          if (data.error) throw new Error(data.error);
+
+          setTranscript(data.transcript || "");
+          setMeetingNotes({
+            summary: data.notes || "",
+            takeaways: "",
+            decisions: "",
+          });
+
+          const { processedDiagrams, processedFlashcards } =
+            parseBackendDiagrams(data.diagram);
+          setEditableMermaids(processedDiagrams);
+          setEditableFlashcards(processedFlashcards);
+
+          setTimeout(() => {
+            finishProcessing("YouTube Video Notes", null, {
+              transcript: data.transcript,
+              summary: data.notes,
+              graphs: processedDiagrams,
+              flashcards: processedFlashcards,
+            });
+            setYoutubeUrl("");
+          }, 1000);
+        } catch (err) {
+          clearInterval(uploadRef.current);
+          alert("⚠️ Processing Failed!\n\nDetails: " + err.message);
+          setStatus("idle");
+        }
       }
+    };
 
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-
-      setTranscript(data.transcript || "");
-      setMeetingNotes({
-        summary: data.notes || "",
-        takeaways: "",
-        decisions: "",
-      });
-
-      const { processedDiagrams, processedFlashcards } = parseBackendDiagrams(
-        data.diagram,
-      );
-      setEditableMermaids(processedDiagrams);
-      setEditableFlashcards(processedFlashcards);
-
-      setTimeout(() => {
-        finishProcessing("YouTube Video Notes", null, {
-          transcript: data.transcript,
-          summary: data.notes,
-          graphs: processedDiagrams,
-          flashcards: processedFlashcards,
-        });
-        setYoutubeUrl("");
-      }, 1000);
-    } catch (err) {
-      clearInterval(uploadRef.current);
-      alert(
-        "⚠️ YouTube Processing Failed!\n\nDetails: " +
-          err.message +
-          "\n\nIf you see a server error, ensure you stopped and re-ran 'python app.py' in the backend terminal.",
-      );
-      setStatus("idle");
-      setYoutubeUrl("");
-    }
+    window.addEventListener("message", handleYtResult);
+    window.postMessage({ type: "SPOLY_FETCH_YT_TRANSCRIPT", videoId }, "*");
   };
 
   const handleReset = () => {
-    // Stop any lingering recorder before resetting
     if (
       localMediaRecorderRef.current &&
       localMediaRecorderRef.current.state !== "inactive"
@@ -1178,14 +1238,11 @@ export default function LiveNotes() {
         localMediaRecorderRef.current.onstop = null;
         localMediaRecorderRef.current.ondataavailable = null;
         localMediaRecorderRef.current.stop();
-      } catch (e) {
-        // Ignore
-      }
+      } catch (e) {}
     }
     localMediaRecorderRef.current = null;
     localAudioChunks.current = [];
 
-    // Stop any lingering audio stream
     if (audioStream) {
       audioStream.getTracks().forEach((t) => t.stop());
     }
