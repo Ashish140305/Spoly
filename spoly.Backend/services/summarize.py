@@ -3,11 +3,13 @@ from transformers import T5Tokenizer, T5ForConditionalGeneration
 tokenizer = None
 model = None
 
+
 def load_model():
     global tokenizer, model
     if tokenizer is None:
         tokenizer = T5Tokenizer.from_pretrained("training/model")
         model = T5ForConditionalGeneration.from_pretrained("training/model")
+
 
 def generate_notes(text):
 
@@ -44,6 +46,7 @@ Text:
     notes = "\n".join([f"- {s}" for s in important[:6]])
 
     return notes if notes else text[:200]
+
 
 def clean_text(text):
     lines = text.split(". ")

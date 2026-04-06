@@ -9,7 +9,7 @@ def detect_diagram_type(text):
         return "erd"
     if "api" in text or "request" in text:
         return "sequence"
-    
+
     return "flowchart"
 
 

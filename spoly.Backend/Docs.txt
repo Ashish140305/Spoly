@@ -2,11 +2,15 @@ To Run Backend
 uvicorn app:app --reload
 
 To Activate venv
+python -m venv venv
 venv\Scripts\activate
+
+for downloading python packages use
+pip install -r requirements.txt
 
 sql for clerk 
 
-create database spoyl;
+create database spoly_db;
 CREATE TABLE users (
     id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -19,7 +23,7 @@ to see new users
 USE spoly_db;
 SELECT * FROM users;
 
-for saved ntes
+for saved notes
 
 CREATE TABLE IF NOT EXISTS notes (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -35,7 +39,7 @@ CREATE TABLE IF NOT EXISTS notes (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-for templetes
+for templates
 
 CREATE TABLE IF NOT EXISTS templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
