@@ -438,10 +438,13 @@
 #     return {"success": success}
 
 
+from fastapi import APIRouter
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from bson.objectid import ObjectId
 from datetime import datetime, timezone
 from utils.config import MONGO_URI, MONGO_DB_NAME
+
+router = APIRouter()
 
 # Initialize MongoDB Connection
 try:
@@ -528,3 +531,186 @@ def delete_note_from_db(note_id: str):
     except Exception as e:
         print(f"🚨 MongoDB Error (Delete): {e}")
         return False
+
+
+# ---------------- FASTAPI ROUTE HANDLERS ----------------
+
+from fastapi import UploadFile, File, Form
+from pydantic import BaseModel
+from typing import Optional, List
+import asyncio
+import re
+
+
+class SaveNoteRequest(BaseModel):
+    clerk_id: str
+    source_type: str
+    transcript: str
+    notes: str
+    diagram_data: str
+
+
+@router.post("/generate")
+async def generate_notes(
+    file: UploadFile = File(...),
+    template: str = Form("Standard Study Notes"),
+):
+    try:
+        from services.speech import speech_to_text
+        from services.pipeline import run_pipeline
+
+        is_chunk = file.filename == "chunk.webm"
+        audio_bytes = await file.read()
+
+        print(
+            f"\n📥 [API HIT] Received {'Chunk' if is_chunk else 'Final'} Audio | Size: {len(audio_bytes)} bytes",
+            flush=True,
+        )
+
+        if len(audio_bytes) < 100:
+            return {
+                "transcript": "",
+                "notes": "",
+                "diagram": '{"diagrams": [], "flashcards": []}',
+            }
+
+        text = await asyncio.to_thread(speech_to_text, audio_bytes, file.filename)
+
+        if not text or len(text.strip()) < 5:
+            return {
+                "transcript": text,
+                "notes": "",
+                "diagram": '{"diagrams": [], "flashcards": []}',
+            }
+
+        if is_chunk:
+            from services.summarize import generate_notes as fast_summary
+            notes = ""
+            try:
+                notes = fast_summary(text)
+            except Exception:
+                pass
+            return {
+                "transcript": text,
+                "notes": notes,
+                "diagram": '{"diagrams": [], "flashcards": []}',
+            }
+
+        print("🚀 Processing FINAL complete audio file...", flush=True)
+        result = await asyncio.to_thread(run_pipeline, text, template)
+        result["transcript"] = text
+        return result
+
+    except Exception as e:
+        print("🚨 GENERATE API ERROR:", e, flush=True)
+        return {
+            "error": str(e),
+            "transcript": "",
+            "notes": "",
+            "diagram": '{"diagrams": [], "flashcards": []}',
+        }
+
+
+@router.post("/process-text")
+async def process_raw_text(
+    transcript: str = Form(...), template: str = Form("Standard Study Notes")
+):
+    try:
+        from services.pipeline import run_pipeline
+
+        if not transcript or len(transcript.strip()) < 10:
+            raise Exception("Transcript is too short or empty.")
+
+        print(f"🧠 Processing Raw Text ({len(transcript)} chars)", flush=True)
+        result = await asyncio.to_thread(run_pipeline, transcript, template)
+        result["transcript"] = transcript
+        return result
+
+    except Exception as e:
+        print("🚨 Text Processing Error:", e, flush=True)
+        return {
+            "error": str(e),
+            "transcript": transcript,
+            "notes": f"Failed to process text: {str(e)}",
+            "diagram": "API FAILED",
+        }
+
+
+@router.post("/youtube")
+async def generate_from_youtube(
+    url: str = Form(...), template: str = Form("Standard Study Notes")
+):
+    try:
+        from services.pipeline import run_pipeline
+
+        video_id = ""
+        match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11}).*", url)
+        if match:
+            video_id = match.group(1)
+
+        if not video_id:
+            return {
+                "error": "Invalid YouTube URL format.",
+                "transcript": "",
+                "notes": "",
+                "diagram": "API FAILED",
+            }
+
+        def get_transcript(vid_id):
+            from youtube_transcript_api import YouTubeTranscriptApi
+            transcript_list = YouTubeTranscriptApi.list_transcripts(vid_id)
+            try:
+                transcript = transcript_list.find_transcript(["en", "en-US", "en-GB"])
+            except Exception:
+                for t in transcript_list:
+                    transcript = t.translate("en")
+                    break
+            return transcript.fetch()
+
+        transcript_data = await asyncio.to_thread(get_transcript, video_id)
+        text = " ".join([chunk["text"] for chunk in transcript_data])
+
+        if not text:
+            raise Exception("Could not fetch transcript")
+
+        print(f"🗣️ YT TRANSCRIBED ({len(text)} chars)", flush=True)
+        result = await asyncio.to_thread(run_pipeline, text, template)
+        result["transcript"] = text
+        return result
+
+    except Exception as e:
+        print("🚨 YT Error:", e, flush=True)
+        return {
+            "error": str(e),
+            "transcript": "",
+            "notes": f"Failed to fetch YouTube transcript: {str(e)}",
+            "diagram": "API FAILED",
+        }
+
+
+@router.post("/save")
+def save_note(req: SaveNoteRequest):
+    try:
+        success = save_note_to_db(
+            req.clerk_id, req.source_type, req.transcript, req.notes, req.diagram_data
+        )
+        if success:
+            return {"success": True, "message": "Saved to MongoDB"}
+        return {"error": "Database insert failed"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/user/{clerk_id}")
+def get_user_notes(clerk_id: str):
+    try:
+        notes = get_notes_from_db(clerk_id)
+        return {"success": True, "notes": notes}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.delete("/{note_id}")
+def delete_note(note_id: str):
+    success = delete_note_from_db(note_id)
+    return {"success": success}

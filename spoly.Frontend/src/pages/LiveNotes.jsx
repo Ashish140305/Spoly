@@ -4219,7 +4219,7 @@ export default function LiveNotes() {
                             <p
                               className={`font-medium ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
                             >
-                              Groq is currently synthesizing the audio and
+                              Spoly is currently synthesizing the audio and
                               generating structured data.
                             </p>
                           </div>
