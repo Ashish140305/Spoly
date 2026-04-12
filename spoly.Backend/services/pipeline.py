@@ -5,12 +5,12 @@ from services.diagram import generate_diagram_local
 from services.enhancer import enhance_notes, enhance_diagram
 
 
-def run_pipeline(text, template="Standard Study Notes"):
+def run_pipeline(text, template="Standard Study Notes", context_text=""):
 
     notes = generate_notes(text)
 
     # Pass the template to the note enhancer
-    improved_notes = enhance_notes(notes, template)
+    improved_notes = enhance_notes(notes, template, context_text)
     if improved_notes:
         notes = improved_notes
 
