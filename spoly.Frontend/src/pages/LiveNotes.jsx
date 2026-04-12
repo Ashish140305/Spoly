@@ -2299,7 +2299,7 @@ import {
   getTheme,
 } from "../utils/uiHelpers";
 import {
-  templatesDB,
+  templatesDB as builtinTemplatesDB,
   initialFolders,
   templateCategories,
 } from "../utils/constants";
@@ -2705,7 +2705,125 @@ export default function LiveNotes() {
   useEffect(
     () => localStorage.setItem("spoly_audio", JSON.stringify(audioConstraints)),
     [audioConstraints],
-  );
+  ); // --- CLOUD SYNC SETTINGS ---
+  const [hasSyncedSettings, setHasSyncedSettings] = useState(false);
+
+  useEffect(() => {
+    if (user?.id && !hasSyncedSettings) {
+      fetch(`http://127.0.0.1:8000/api/users/settings/${user.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.settings && Object.keys(data.settings).length > 0) {
+            const s = data.settings;
+            if (s.isDarkMode !== undefined) setIsDarkMode(s.isDarkMode);
+            if (s.exportFormat !== undefined) setExportFormat(s.exportFormat);
+            if (s.selectedMic !== undefined) setSelectedMic(s.selectedMic);
+            if (s.audioConstraints !== undefined)
+              setAudioConstraints(s.audioConstraints);
+            if (s.settingsToggles !== undefined)
+              setSettingsToggles(s.settingsToggles);
+          }
+          setHasSyncedSettings(true);
+        })
+        .catch((err) => {
+          console.error("Failed to sync settings from cloud", err);
+          setHasSyncedSettings(true);
+        });
+    }
+  }, [user?.id, hasSyncedSettings]);
+
+  useEffect(() => {
+    if (user?.id && hasSyncedSettings) {
+      const payload = {
+        clerk_id: user.id,
+        settings: {
+          isDarkMode,
+          exportFormat,
+          selectedMic,
+          audioConstraints,
+          settingsToggles,
+        },
+      };
+
+      // Debounce saving slightly using setTimeout to avoid spamming the DB
+      const handler = setTimeout(() => {
+        fetch(`http://127.0.0.1:8000/api/users/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).catch((err) => console.error("Failed to save settings", err));
+      }, 1000);
+
+      return () => clearTimeout(handler);
+    }
+  }, [
+    isDarkMode,
+    exportFormat,
+    selectedMic,
+    audioConstraints,
+    settingsToggles,
+    user?.id,
+    hasSyncedSettings,
+  ]);
+  // ---------------------------
+
+  // --- CUSTOM TEMPLATES (MongoDB) ---
+  const [customTemplates, setCustomTemplates] = useState([]);
+  const [hasFetchedTemplates, setHasFetchedTemplates] = useState(false);
+
+  useEffect(() => {
+    if (user?.id && !hasFetchedTemplates) {
+      fetch(`http://127.0.0.1:8000/api/templates/${user.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.templates) setCustomTemplates(data.templates);
+          setHasFetchedTemplates(true);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch custom templates", err);
+          setHasFetchedTemplates(true);
+        });
+    }
+  }, [user?.id, hasFetchedTemplates]);
+
+  const handleSaveCustomTemplate = async (templateData) => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/templates/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...templateData, clerk_id: user.id }),
+      });
+      const data = await res.json();
+      if (data.success && data.template) {
+        setCustomTemplates((prev) => [...prev, data.template]);
+        showToast("Custom template saved!");
+      }
+    } catch (err) {
+      console.error("Failed to save template", err);
+      showToast("Failed to save template.");
+    }
+  };
+
+  const handleDeleteCustomTemplate = async (templateId) => {
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/templates/${templateId}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (data.success) {
+        setCustomTemplates((prev) => prev.filter((t) => t.id !== templateId));
+        showToast("Template deleted.");
+      }
+    } catch (err) {
+      console.error("Failed to delete template", err);
+      showToast("Failed to delete template.");
+    }
+  };
+
+  const templatesDB = [...builtinTemplatesDB, ...customTemplates];
+  // ------------------------------------
 
   const [status, setStatus] = useState("idle");
   const [successView, setSuccessView] = useState("notes");
@@ -2749,6 +2867,8 @@ export default function LiveNotes() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
   const uploadRef = useRef(null);
+
+  const fakeProgressRef = useRef(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedNote, setSelectedNote] = useState(null);
@@ -2845,6 +2965,12 @@ export default function LiveNotes() {
         "template",
         activeAiTemplateRef.current?.name || "AI Auto-Detect",
       );
+      if (
+        activeAiTemplateRef.current?.isCustom &&
+        activeAiTemplateRef.current?.prompt
+      ) {
+        formData.append("custom_prompt", activeAiTemplateRef.current.prompt);
+      }
 
       const response = await fetch(`${BACKEND_URL}/api/notes/generate`, {
         method: "POST",
@@ -3276,6 +3402,12 @@ export default function LiveNotes() {
         "template",
         activeAiTemplateRef.current?.name || "AI Auto-Detect",
       );
+      if (
+        activeAiTemplateRef.current?.isCustom &&
+        activeAiTemplateRef.current?.prompt
+      ) {
+        formData.append("custom_prompt", activeAiTemplateRef.current.prompt);
+      }
 
       // Pre-Context Uploads functionality
       if (contextFiles && contextFiles.length > 0) {
@@ -3398,6 +3530,102 @@ export default function LiveNotes() {
     }, 200);
   };
 
+  const [textInput, setTextInput] = useState("");
+
+  const processTextInput = async () => {
+    if (!textInput.trim() || textInput.trim().length < 20) {
+      showToast("Please enter at least 20 characters of text.");
+      return;
+    }
+
+    setProcessingType("text");
+    setStatus("uploading");
+    setFileName("Processing your text input...");
+    fakeProgressRef.current = setInterval(() => {
+      setUploadProgress((p) => {
+        if (p >= 90) {
+          clearInterval(fakeProgressRef.current);
+          return 90;
+        }
+        return p + 4;
+      });
+    }, 200);
+
+    try {
+      const formData = new FormData();
+      formData.append("transcript", textInput.trim());
+      formData.append(
+        "template",
+        activeAiTemplateRef.current?.name || "Standard Study Notes",
+      );
+      if (
+        activeAiTemplateRef.current?.isCustom &&
+        activeAiTemplateRef.current?.prompt
+      ) {
+        formData.append("custom_prompt", activeAiTemplateRef.current.prompt);
+      }
+      if (contextFiles && contextFiles.length > 0) {
+        contextFiles.forEach((file) => {
+          formData.append("context_files", file, file.name);
+        });
+      }
+
+      const response = await fetch(`${BACKEND_URL}/api/notes/process-text`, {
+        method: "POST",
+        body: formData,
+      });
+      const fetchedData = await response.json();
+
+      clearInterval(fakeProgressRef.current);
+      setUploadProgress(100);
+
+      let processedDiagrams = [];
+      let processedFlashcards = [];
+      try {
+        const parsed =
+          typeof fetchedData.diagram === "string"
+            ? JSON.parse(fetchedData.diagram)
+            : fetchedData.diagram;
+        if (parsed?.diagrams) processedDiagrams = parsed.diagrams;
+        if (parsed?.flashcards) processedFlashcards = parsed.flashcards;
+      } catch {
+        /* ignore parse errors */
+      }
+
+      const finalTitle = activeAiTemplate
+        ? `[${activeAiTemplate.name}] Text Note`
+        : "Text Note";
+
+      setTimeout(() => {
+        setStatus("success");
+        isFinalizingRef.current = false;
+        setSuccessData({
+          title: finalTitle,
+          date: new Date().toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+          source_type: "text",
+          duration: "—",
+          summary: fetchedData.summary || fetchedData.notes || "",
+          graphs: processedDiagrams,
+          flashcards: processedFlashcards,
+          clerk_id: user?.id || "",
+          transcript: textInput.trim(),
+          diagram_data: fetchedData.diagram || "",
+          tags: [activeAiTemplate?.category || "Text"],
+        });
+        setTextInput("");
+      }, 800);
+    } catch (err) {
+      clearInterval(fakeProgressRef.current);
+      console.error("Text processing error:", err);
+      showToast("Failed to process text. Please try again.");
+      setStatus("idle");
+    }
+  };
+
   // YouTube processing Extension Proxy
   const processYoutube = async (e) => {
     e.preventDefault();
@@ -3445,6 +3673,15 @@ export default function LiveNotes() {
             "template",
             activeAiTemplateRef.current?.name || "AI Auto-Detect",
           );
+          if (
+            activeAiTemplateRef.current?.isCustom &&
+            activeAiTemplateRef.current?.prompt
+          ) {
+            formData.append(
+              "custom_prompt",
+              activeAiTemplateRef.current.prompt,
+            );
+          }
 
           if (contextFiles && contextFiles.length > 0) {
             contextFiles.forEach((file) => {
@@ -3960,6 +4197,7 @@ export default function LiveNotes() {
                           </motion.div>
                         </div>
 
+                        {/* ─── PRE-CONTEXT DOCUMENTS CARD ─── */}
                         <div
                           className={`group rounded-2xl p-6 transition-colors border relative overflow-hidden ${isDarkMode ? "bg-[#1a1f2e] border-[#232a3b]" : "bg-white border-slate-200 shadow-sm"}`}
                         >
@@ -4050,12 +4288,14 @@ export default function LiveNotes() {
                         className="flex flex-col items-center justify-center w-full max-w-lg gap-6 py-10 mx-auto"
                       >
                         <div
-                          className={`w-16 h-16 rounded-full flex items-center justify-center shadow-inner mb-2 ${processingType === "youtube" ? (isDarkMode ? "bg-red-900/30 text-red-400" : "bg-red-100 text-red-600") : isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-100 text-blue-600"}`}
+                          className={`w-16 h-16 rounded-full flex items-center justify-center shadow-inner mb-2 ${processingType === "youtube" ? (isDarkMode ? "bg-red-900/30 text-red-400" : "bg-red-100 text-red-600") : processingType === "text" ? (isDarkMode ? "bg-violet-900/30 text-violet-400" : "bg-violet-100 text-violet-600") : isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-100 text-blue-600"}`}
                         >
                           {processingType === "image" ? (
                             <ImageIcon size={28} />
                           ) : processingType === "youtube" ? (
                             <Youtube size={28} />
+                          ) : processingType === "text" ? (
+                            <FileText size={28} />
                           ) : (
                             <FileAudio size={28} />
                           )}
@@ -4069,13 +4309,15 @@ export default function LiveNotes() {
                           >
                             {processingType === "youtube"
                               ? "Fetching Transcript from YouTube..."
-                              : "Uploading to Spoly Servers..."}
+                              : processingType === "text"
+                                ? "Processing your text with AI..."
+                                : "Uploading to Spoly Servers..."}
                           </p>
                           <div
                             className={`w-full h-3 rounded-full overflow-hidden border ${isDarkMode ? "bg-slate-800 border-slate-700" : "bg-slate-100 border-slate-200"}`}
                           >
                             <motion.div
-                              className={`h-full ${processingType === "youtube" ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gradient-to-r from-blue-500 to-indigo-500"}`}
+                              className={`h-full ${processingType === "youtube" ? "bg-gradient-to-r from-red-500 to-orange-500" : processingType === "text" ? "bg-gradient-to-r from-violet-500 to-fuchsia-500" : "bg-gradient-to-r from-blue-500 to-indigo-500"}`}
                               initial={{ width: 0 }}
                               animate={{ width: `${uploadProgress}%` }}
                               transition={{ ease: "linear" }}
@@ -4470,6 +4712,10 @@ export default function LiveNotes() {
                   setActiveAiTemplate={setActiveAiTemplate}
                   setActiveTab={setActiveTab}
                   showToast={showToast}
+                  clerkId={user?.id}
+                  customTemplates={customTemplates}
+                  onSaveCustomTemplate={handleSaveCustomTemplate}
+                  onDeleteCustomTemplate={handleDeleteCustomTemplate}
                 />
               </motion.div>
             )}

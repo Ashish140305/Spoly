@@ -244,7 +244,7 @@
 # async def generate_notes(
 #     file: UploadFile = File(...),
 #     template: str = Form("Standard Study Notes"),
-#     context_files: Optional[List[UploadFile]] = File(None),  # 🟢 ADD THIS
+#     context_files: List[UploadFile] = File(default=[]),  # 🟢 ADD THIS
 # ):
 #     try:
 #         is_chunk = file.filename == "chunk.webm"
@@ -438,13 +438,45 @@
 #     return {"success": success}
 
 
+
+
+
+
 from fastapi import APIRouter
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from bson.objectid import ObjectId
 from datetime import datetime, timezone
 from utils.config import MONGO_URI, MONGO_DB_NAME
+import PyPDF2
+import io
+from typing import Optional, List
+from fastapi import UploadFile
 
 router = APIRouter()
+
+async def extract_context_text(files: Optional[List[UploadFile]] = None) -> str:
+    if not files:
+        return ""
+
+    context_text = ""
+    for file in files:
+        content = await file.read()
+        if file.filename.lower().endswith(".pdf"):
+            try:
+                reader = PyPDF2.PdfReader(io.BytesIO(content))
+                for page in reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        context_text += page_text + "\n"
+            except Exception as e:
+                print(f"Error parsing PDF {file.filename}: {e}")
+        else:
+            try:
+                context_text += content.decode("utf-8") + "\n"
+            except Exception as e:
+                print(f"Error decoding {file.filename}: {e}")
+
+    return context_text
 
 # Initialize MongoDB Connection
 try:
@@ -554,6 +586,8 @@ class SaveNoteRequest(BaseModel):
 async def generate_notes(
     file: UploadFile = File(...),
     template: str = Form("Standard Study Notes"),
+    context_files: List[UploadFile] = File(default=[]),
+    custom_prompt: Optional[str] = Form(None),
 ):
     try:
         from services.speech import speech_to_text
@@ -597,7 +631,9 @@ async def generate_notes(
             }
 
         print("🚀 Processing FINAL complete audio file...", flush=True)
-        result = await asyncio.to_thread(run_pipeline, text, template)
+        context_text = await extract_context_text(context_files)
+        effective_template = custom_prompt if custom_prompt else template
+        result = await asyncio.to_thread(run_pipeline, text, effective_template, context_text)
         result["transcript"] = text
         return result
 
@@ -613,7 +649,10 @@ async def generate_notes(
 
 @router.post("/process-text")
 async def process_raw_text(
-    transcript: str = Form(...), template: str = Form("Standard Study Notes")
+    transcript: str = Form(...),
+    template: str = Form("Standard Study Notes"),
+    context_files: List[UploadFile] = File(default=[]),
+    custom_prompt: Optional[str] = Form(None),
 ):
     try:
         from services.pipeline import run_pipeline
@@ -622,7 +661,9 @@ async def process_raw_text(
             raise Exception("Transcript is too short or empty.")
 
         print(f"🧠 Processing Raw Text ({len(transcript)} chars)", flush=True)
-        result = await asyncio.to_thread(run_pipeline, transcript, template)
+        context_text = await extract_context_text(context_files)
+        effective_template = custom_prompt if custom_prompt else template
+        result = await asyncio.to_thread(run_pipeline, transcript, effective_template, context_text)
         result["transcript"] = transcript
         return result
 
@@ -638,7 +679,10 @@ async def process_raw_text(
 
 @router.post("/youtube")
 async def generate_from_youtube(
-    url: str = Form(...), template: str = Form("Standard Study Notes")
+    url: str = Form(...),
+    template: str = Form("Standard Study Notes"),
+    context_files: List[UploadFile] = File(default=[]),
+    custom_prompt: Optional[str] = Form(None),
 ):
     try:
         from services.pipeline import run_pipeline
@@ -674,7 +718,9 @@ async def generate_from_youtube(
             raise Exception("Could not fetch transcript")
 
         print(f"🗣️ YT TRANSCRIBED ({len(text)} chars)", flush=True)
-        result = await asyncio.to_thread(run_pipeline, text, template)
+        context_text = await extract_context_text(context_files)
+        effective_template = custom_prompt if custom_prompt else template
+        result = await asyncio.to_thread(run_pipeline, text, effective_template, context_text)
         result["transcript"] = text
         return result
 

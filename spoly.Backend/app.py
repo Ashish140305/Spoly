@@ -84,9 +84,19 @@
 #     return JSONResponse(content={"success": True})
 
 import os
+import sys
+import io
+
+if sys.stdout.encoding is not None and sys.stdout.encoding.lower() != 'utf-8':
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    except AttributeError:
+        pass
+
 from dotenv import load_dotenv
 
-# ✅ MUST BE FIRST
+# MUST BE FIRST
 load_dotenv()
 
 from fastapi import FastAPI, Request, HTTPException
@@ -97,7 +107,7 @@ from pymongo import MongoClient
 from fastapi.middleware.cors import CORSMiddleware
 from svix.webhooks import Webhook, WebhookVerificationError
 
-from routes import notes
+from routes import notes, users, templates
 from utils.config import MONGO_URI, MONGO_DB_NAME, CLERK_SECRET
 
 app = FastAPI()
@@ -114,6 +124,8 @@ app.add_middleware(
 # ---------------- ROUTES ----------------
 
 app.include_router(notes.router, prefix="/api/notes", tags=["Notes"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
+app.include_router(templates.router, prefix="/api/templates", tags=["Templates"])
 
 
 @app.get("/")

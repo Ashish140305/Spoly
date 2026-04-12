@@ -10,6 +10,7 @@ import {
   Layers,
 } from "lucide-react";
 import MermaidDiagram from "./MermaidDiagram";
+import html2pdf from "html2pdf.js";
 
 const Flashcard = ({ front, back, isDarkMode }) => {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -167,11 +168,133 @@ export default function NoteDetailView({
     if (!selectedNote) return;
 
     try {
-      // Generate the markdown content
+      // Sanitize the title to make a clean filename (removes special chars)
+      const safeTitle = (selectedNote.title || "spoly_note")
+        .replace(/[^a-z0-9]/gi, "_")
+        .toLowerCase();
+
+      if (exportFormat === "pdf") {
+        showToast("Generating PDF...");
+
+        // Create a hidden temporary container
+        const container = document.createElement("div");
+        container.style.padding = "40px";
+        container.style.fontFamily = "'Inter', sans-serif";
+        container.style.color = "#1e293b";
+        container.style.backgroundColor = "#ffffff";
+
+        // Build HTML content safely
+        let htmlContent = `
+          <h1 style="font-size: 24px; font-weight: 800; margin-bottom: 8px;">${selectedNote.title || "Spoly Note"}</h1>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 24px;">Date: ${selectedNote.date} | Duration: ${selectedNote.duration || "00:00"}</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin-bottom: 24px;" />
+        `;
+
+        if (selectedNote.summary) {
+          // Format summary simply (convert ** to bold, etc)
+          const formattedSummary = selectedNote.summary
+            .split("\n")
+            .map((line) => {
+              const trimmed = line.trim();
+              if (!trimmed) return "<br/>";
+              let mdParsed = trimmed.replace(
+                /\*\*(.*?)\*\*/g,
+                "<strong>$1</strong>",
+              );
+              if (trimmed.startsWith("📌") || trimmed.startsWith("#"))
+                return `<h3 style="font-size: 18px; font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #2563eb;">${mdParsed.replace(/^[📌#]+\s*/, "")}</h3>`;
+              if (
+                trimmed.startsWith("•") ||
+                trimmed.startsWith("-") ||
+                trimmed.startsWith("*")
+              )
+                return `<li style="margin-bottom: 6px; margin-left: 20px;">${mdParsed.replace(/^[•\-*]\s*/, "")}</li>`;
+              return `<p style="margin-bottom: 12px; line-height: 1.6;">${mdParsed}</p>`;
+            })
+            .join("");
+
+          htmlContent += `
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Structured Notes</h2>
+            <div style="font-size: 14px;">${formattedSummary}</div>
+          `;
+        }
+
+        // Add Flashcards directly to document if they exist
+        if (selectedNote.flashcards && selectedNote.flashcards.length > 0) {
+          htmlContent += `
+            <div style="page-break-before: always;"></div>
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 16px; margin-top: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Practice Flashcards</h2>
+          `;
+
+          selectedNote.flashcards.forEach((card, index) => {
+            htmlContent += `
+              <div style="margin-bottom: 16px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+                <p style="font-weight: bold; margin-bottom: 8px;"><span style="color: #4f46e5;">Q${index + 1}:</span> ${card.front}</p>
+                <p><span style="color: #059669; font-weight: bold;">A${index + 1}:</span> ${card.back}</p>
+              </div>
+            `;
+          });
+        }
+
+        let validDiagrams = [];
+        if (
+          selectedNote.graphs &&
+          Array.isArray(selectedNote.graphs) &&
+          selectedNote.graphs.length > 0
+        ) {
+          validDiagrams = selectedNote.graphs;
+        } else if (
+          selectedNote.graph &&
+          typeof selectedNote.graph === "string" &&
+          selectedNote.graph !== "API FAILED"
+        ) {
+          validDiagrams = [
+            { title: "Saved Flowchart", code: selectedNote.graph },
+          ];
+        }
+
+        if (validDiagrams.length > 0) {
+          htmlContent += `
+            <div style="page-break-before: always;"></div>
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 16px; margin-top: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Diagrams (Mermaid Code)</h2>
+          `;
+          validDiagrams.forEach((diag) => {
+            htmlContent += `
+              <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">${diag.title}</h3>
+              <pre style="background: #f1f5f9; padding: 12px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-all;">${diag.code}</pre>
+            `;
+          });
+        }
+
+        container.innerHTML = htmlContent;
+
+        const opt = {
+          margin: 0.5,
+          filename: `${safeTitle}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+        };
+
+        html2pdf()
+          .set(opt)
+          .from(container)
+          .save()
+          .then(() => {
+            showToast("PDF Exported Successfully!");
+          });
+
+        return; // Exit here
+      }
+
+      // Generate the markdown content for standard exports
       const content = generateMarkdown(selectedNote);
 
-      // Determine extension based on settings (defaults to .md)
-      const isTxt = exportFormat === "txt" || exportFormat === "text";
+      // Determine extension based on settings
+      const isTxt =
+        exportFormat === "txt" ||
+        exportFormat === "text" ||
+        exportFormat === "plaintext";
       const fileExtension = isTxt ? "txt" : "md";
       const mimeType = isTxt ? "text/plain" : "text/markdown";
 
@@ -182,11 +305,6 @@ export default function NoteDetailView({
       // Create a hidden anchor tag to trigger the download
       const a = document.createElement("a");
       a.href = url;
-
-      // Sanitize the title to make a clean filename (removes special chars)
-      const safeTitle = (selectedNote.title || "spoly_note")
-        .replace(/[^a-z0-9]/gi, "_")
-        .toLowerCase();
       a.download = `${safeTitle}.${fileExtension}`;
 
       // Trigger download and cleanup

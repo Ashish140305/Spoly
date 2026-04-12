@@ -180,7 +180,7 @@ TEMPLATE_CONFIGS = {
 # =====================================================================
 # 🚀 1. NOTES GENERATOR (INTEGRATED FORMATTING)
 # =====================================================================
-def enhance_notes(notes, template="AI Auto-Detect"):
+def enhance_notes(notes, template="AI Auto-Detect", context_text=""):
     if not GROQ_API_KEY:
         return None
 
@@ -196,10 +196,22 @@ If the input text is COMPLETELY UNRELATED to a "{template}" (e.g., the template 
 Do NOT leave it blank. Instead, prepend this EXACT warning at the very top:
 "📌 **⚠️ Content Mismatch Indicator**: The provided audio does not align with the '{template}' framework. Notes have been dynamically extracted based on actual content."
 """
+    context_section = ""
+    if context_text and context_text.strip():
+        context_section = f"""
+CONTEXT DOCUMENTS PROVIDED:
+The following context has been provided to help you understand specific terminology and background information. Use this context to better interpret the transcript:
+---
+{context_text}
+---
+"""
+
 
     prompt = f"""You are an elite, highly intelligent Note-Taker. The user has selected the "{template}" framework.
 
 {mismatch_warning}
+
+{context_section}
 
 CRITICAL DATA RETENTION RULE:
 Do NOT over-summarize. Extract ALL crucial sentences, facts, numbers, and nuances from the input. Keep explanations highly detailed, utilizing complete sentences. Do not drop important data.

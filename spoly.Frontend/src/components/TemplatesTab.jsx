@@ -2034,10 +2034,16 @@ export default function TemplatesTab({
   setActiveAiTemplate,
   setActiveTab,
   showToast,
+  clerkId,
+  customTemplates = [],
+  onSaveCustomTemplate,
+  onDeleteCustomTemplate,
 }) {
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState([]);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({ name: "", desc: "", prompt: "", category: "Custom" });
 
   const displayCategories =
     favorites.length > 0
@@ -2424,6 +2430,132 @@ export default function TemplatesTab({
           </AnimatePresence>
         </div>
       )}
+
+      {/* ─── CUSTOM TEMPLATES SECTION ─── */}
+      <div className={`mt-10 rounded-[2rem] border p-8 ${isDarkMode ? "bg-[#131722] border-[#232a3b]" : "bg-slate-50 border-slate-200"}`}>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className={`text-xl font-extrabold ${isDarkMode ? "text-white" : "text-slate-900"}`}>My Custom Templates</h3>
+            <p className={`text-sm mt-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Build your own AI instruction frameworks and save them to the cloud.</p>
+          </div>
+          <button
+            onClick={() => setShowCreateForm((p) => !p)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border shadow-sm ${isDarkMode ? "bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-500" : "bg-indigo-600 text-white border-transparent hover:bg-indigo-700"}`}
+          >
+            <Sparkles size={16} />
+            {showCreateForm ? "Cancel" : "New Template"}
+          </button>
+        </div>
+
+        {/* CREATE FORM */}
+        <AnimatePresence>
+          {showCreateForm && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden mb-8"
+            >
+              <div className={`rounded-2xl border p-6 space-y-4 ${isDarkMode ? "bg-[#1a1f2e] border-[#2a2f3d]" : "bg-white border-slate-200"} shadow-sm`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Template Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Research Deep Dive"
+                      value={newTemplate.name}
+                      onChange={(e) => setNewTemplate((p) => ({ ...p, name: e.target.value }))}
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Short Description *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Extracts key findings with citations"
+                      value={newTemplate.desc}
+                      onChange={(e) => setNewTemplate((p) => ({ ...p, desc: e.target.value }))}
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>AI Prompt Instructions *</label>
+                  <textarea
+                    rows={5}
+                    placeholder="Describe exactly how the AI should process and format the transcript. e.g. 'Structure the output as a research summary with: Key Findings, Methodology, Open Questions, and a Glossary of important terms.'"
+                    value={newTemplate.prompt}
+                    onChange={(e) => setNewTemplate((p) => ({ ...p, prompt: e.target.value }))}
+                    className={`w-full rounded-xl border px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
+                  />
+                </div>
+                <div className="flex items-center gap-4 pt-2">
+                  <button
+                    onClick={async () => {
+                      if (!newTemplate.name.trim() || !newTemplate.prompt.trim()) {
+                        showToast("Name and Prompt are required!");
+                        return;
+                      }
+                      await onSaveCustomTemplate(newTemplate);
+                      setNewTemplate({ name: "", desc: "", prompt: "", category: "Custom" });
+                      setShowCreateForm(false);
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95 transition-all shadow-md"
+                  >
+                    <Sparkles size={15} /> Save Template
+                  </button>
+                  <p className={`text-xs ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Templates are saved to your cloud account.</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* CUSTOM TEMPLATE CARDS */}
+        {customTemplates.length === 0 ? (
+          <div className={`flex flex-col items-center justify-center py-12 rounded-2xl border-dashed border-2 ${isDarkMode ? "border-[#2a2f3d] text-slate-500" : "border-slate-200 text-slate-400"}`}>
+            <Sparkles size={32} className="mb-3 opacity-40" />
+            <p className="font-bold text-sm">No custom templates yet</p>
+            <p className="text-xs mt-1">Click "New Template" to create your first AI framework.</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {customTemplates.map((temp) => (
+              <motion.div
+                key={temp.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`group relative flex flex-col p-5 rounded-2xl border transition-all hover:shadow-md ${isDarkMode ? "bg-[#1a1f2e] border-[#2a2f3d] hover:border-indigo-500/40" : "bg-white border-slate-200 hover:border-indigo-300"}`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`p-2 rounded-xl ${isDarkMode ? "bg-indigo-900/30 text-indigo-400" : "bg-indigo-50 text-indigo-600"}`}>
+                    <Sparkles size={18} />
+                  </div>
+                  <button
+                    onClick={() => onDeleteCustomTemplate(temp.id)}
+                    className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${isDarkMode ? "text-red-400 hover:bg-red-900/20" : "text-red-500 hover:bg-red-50"}`}
+                    title="Delete template"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+                <h4 className={`font-extrabold text-sm mb-1 ${isDarkMode ? "text-slate-100" : "text-slate-800"}`}>{temp.name}</h4>
+                <p className={`text-xs leading-relaxed flex-1 mb-4 line-clamp-2 ${isDarkMode ? "text-slate-500" : "text-slate-500"}`}>{temp.desc}</p>
+                <button
+                  onClick={() => {
+                    setActiveAiTemplate({ ...temp, isCustom: true });
+                    setActiveTab("workspace");
+                    showToast(`Template Set: ${temp.name}`);
+                  }}
+                  className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all active:scale-95 border ${isDarkMode ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20" : "bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100"}`}
+                >
+                  Use Framework <ArrowRight size={13} />
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
