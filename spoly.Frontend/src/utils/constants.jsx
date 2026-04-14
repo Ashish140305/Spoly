@@ -272,4 +272,12 @@ export const templatesDB = [
     icon: <ListChecks size={24} />,
     theme: "emerald", // You can change this to "blue", "purple", "amber", or "rose"
   },
+  {
+    id: 28,
+    name: "MCQ Generator",
+    category: "Education",
+    desc: "Extract key concepts into interactive multiple choice questions for practice.",
+    icon: <CheckCircle2 size={24} />,
+    theme: "indigo",
+  },
 ];

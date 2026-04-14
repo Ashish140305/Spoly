@@ -1988,40 +1988,51 @@ export default function LibraryTab({
       exit={{ opacity: 0 }}
       className="relative flex flex-col w-full min-h-screen pb-32 bg-transparent"
     >
+      {/* 🌟 UNIFIED ULTRA-COMPACT HERO BANNER */}
       <div
-        className={`relative w-full rounded-2xl px-8 py-8 mb-8 overflow-hidden shadow-sm transition-colors ${isDarkMode ? "bg-[#161B2A] border border-[#2A2F3D]" : "bg-[#0f172a] border border-transparent"}`}
+        className={`w-full rounded-3xl p-6 md:px-8 relative overflow-hidden shadow-sm border mb-8 flex flex-col justify-center ${isDarkMode ? "bg-[#131722] border-[#2A2F3D]" : "bg-white border-slate-200"}`}
       >
-        <div
-          className={`absolute right-0 top-0 bottom-0 w-1/2 opacity-30 pointer-events-none flex items-center justify-end pr-8 md:pr-12 ${isDarkMode ? "text-slate-600" : "text-slate-500"}`}
-        >
-          <svg
-            width="140"
-            height="100"
-            viewBox="0 0 100 100"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-          >
-            <path d="M 20 20 L 80 20 L 80 40 L 20 40 Z" />
-            <path d="M 20 50 L 80 50 L 80 70 L 20 70 Z" />
-            <line x1="30" y1="20" x2="30" y2="40" />
-            <line x1="30" y1="50" x2="30" y2="70" />
-          </svg>
+        <div className="absolute inset-0 pointer-events-none">
+          <div
+            className={`absolute top-0 right-0 w-64 h-64 blur-[80px] rounded-full ${isDarkMode ? "bg-indigo-600/20" : "bg-indigo-300/30"}`}
+          ></div>
+          <div
+            className={`absolute -bottom-24 -left-24 w-64 h-64 blur-[80px] rounded-full ${isDarkMode ? "bg-blue-600/20" : "bg-blue-300/30"}`}
+          ></div>
         </div>
 
-        <div className="relative z-10 flex flex-col items-start">
-          <div
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest mb-3 border ${isDarkMode ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" : "bg-indigo-500/30 text-indigo-200 border-indigo-400/30"}`}
-          >
-            <Database size={14} /> Knowledge Base
+        <div className="relative z-10 max-w-2xl flex flex-col md:flex-row md:items-center justify-between w-full">
+          <div>
+            <div
+              className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest mb-2 border ${isDarkMode ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" : "bg-indigo-50 text-indigo-600 border-indigo-200"}`}
+            >
+              <Database size={12} /> Knowledge Base
+            </div>
+            <h2
+              className={`text-2xl md:text-3xl font-extrabold tracking-tight mb-1 ${isDarkMode ? "text-white" : "text-slate-900"}`}
+            >
+              Your Notes Library.
+            </h2>
+            <p
+              className={`text-sm font-medium leading-relaxed ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}
+            >
+              Search, filter, and review all your captured intelligence in one place.
+            </p>
           </div>
-          <h2 className="mb-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-            My Library.
-          </h2>
-          <p className="max-w-md text-sm font-medium leading-relaxed text-slate-300">
-            Access and organize your captured intelligence. Search, filter, and
-            review all your generated notes and diagrams in one place.
-          </p>
+        </div>
+        
+        {/* Unique SVG Pattern */}
+        <div className={`absolute -right-4 -bottom-4 w-48 h-48 opacity-[0.12] pointer-events-none ${isDarkMode ? "text-white" : "text-indigo-600"}`}>
+          <svg viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="4">
+            <path d="M 30 70 L 170 70 L 170 180 L 30 180 Z" strokeDasharray="12 10" />
+            <path d="M 40 50 L 160 50" strokeLinecap="round" />
+            <path d="M 50 30 L 150 30" strokeLinecap="round" />
+            <circle cx="70" cy="110" r="12" fill="currentColor" opacity="0.5" />
+            <circle cx="130" cy="140" r="16" />
+            <path d="M 70 122 L 130 140" strokeWidth="3" />
+            <path d="M 100 80 L 130 124" strokeWidth="2" strokeDasharray="4 4" />
+            <circle cx="100" cy="80" r="8" />
+          </svg>
         </div>
       </div>
 
@@ -2277,7 +2288,7 @@ export default function LibraryTab({
       </div>
 
       {notesViewMode === "grid" && (
-        <div className="relative z-10 grid w-full grid-cols-1 gap-6 pt-2 md:grid-cols-2 lg:grid-cols-3">
+        <div className="relative z-10 grid w-full grid-cols-1 gap-6 md:gap-8 pt-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           <AnimatePresence>
             {sortedNotes.map((note, index) => {
               const safeTags = Array.isArray(note.tags) ? note.tags : [];
@@ -2294,7 +2305,7 @@ export default function LibraryTab({
                     e.dataTransfer.setData("noteId", note.id.toString())
                   }
                   onClick={() => setSelectedNote(note)}
-                  className={`group relative flex flex-col text-left transition-all duration-300 hover:z-20 hover:-translate-y-1.5 border rounded-[1.5rem] overflow-hidden min-h-[240px] p-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-[#0b0f19] ${isSelected ? (isDarkMode ? "bg-[#1A2033] border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)]" : "bg-indigo-50 border-indigo-400 shadow-xl") : isDarkMode ? "bg-[#131722] border-[#2A2F3D] hover:border-[#3b435b] hover:shadow-[0_15px_40px_rgba(0,0,0,0.5)]" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl shadow-sm"}`}
+                  className={`group relative flex flex-col text-left transition-all duration-500 hover:z-20 hover:-translate-y-2 border rounded-[1.75rem] overflow-hidden min-h-[260px] p-7 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-[#0b0f19] ${isSelected ? (isDarkMode ? "bg-[#1e2333] border-indigo-500/60 shadow-[0_0_40px_rgba(99,102,241,0.2)]" : "bg-indigo-50/80 border-indigo-500/50 shadow-2xl") : isDarkMode ? "bg-[#131722]/80 backdrop-blur-xl border-[#2A2F3D] hover:border-[#4B5563] hover:bg-[#1A2033] hover:shadow-[0_20px_50px_rgba(0,0,0,0.6)]" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-2xl shadow-md"}`}
                 >
                   <div
                     onClick={(e) => toggleSelection(e, note.id)}
