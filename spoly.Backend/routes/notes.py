@@ -506,7 +506,7 @@ def save_note_to_db(
             "source_type": source_type or "Untitled Note",
             "original_transcript": transcript or "",
             "generated_notes": notes or "",
-            "diagram_data": diagram or '{"diagrams":[],"flashcards":[]}',
+            "diagram_data": diagram or '{"diagrams":[],"flashcards":[],"mcqs":[]}',
             "created_at": datetime.now(timezone.utc),
         }
         notes_collection.insert_one(note_doc)
@@ -537,7 +537,7 @@ def get_notes_from_db(clerk_id: str):
             doc["original_transcript"] = doc.get("original_transcript", "")
             doc["generated_notes"] = doc.get("generated_notes", "")
             doc["diagram_data"] = doc.get(
-                "diagram_data", '{"diagrams":[],"flashcards":[]}'
+                "diagram_data", '{"diagrams":[],"flashcards":[],"mcqs":[]}'
             )
 
             notes_list.append(doc)

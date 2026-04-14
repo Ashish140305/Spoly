@@ -161,18 +161,35 @@ TEMPLATE_CONFIGS = {
         "diagram": "flowchart TD",
         "diagram_rules": "Use `flowchart TD`. Map the logical progression of the proof from step to step.",
         "flashcards": False,
+        "mcqs": False,
+    },
+    "Minutes of Meeting": {
+        "notes": "📌 Meeting Objective & Participants\n📌 Key Discussion Points\n📌 Important Decisions Made\n📌 Action Items (with assignees)\n📌 Next Steps / Next Meeting",
+        "diagram": "mindmap",
+        "diagram_rules": "Use `mindmap`. Root node is Meeting Topic. Branches: Key Points, Decisions, Action Items, Next Steps.",
+        "flashcards": False,
+        "mcqs": False,
     },
     "Flashcard Generator": {
         "notes": "📌 Topic Overview\n📌 Key Terminology\n📌 Crucial Facts & Metrics\n📌 Summary Outline",
         "diagram": "DYNAMIC",  # 🟢 NEW: Allow diagrams in Flashcards
         "diagram_rules": "Generate exactly 1 core diagram (flowchart TD, sequenceDiagram, or timeline) that visually summarizes the entire study material.",
         "flashcards": True,
+        "mcqs": False,
+    },
+    "MCQ Generator": {
+        "notes": "📌 Topic Overview\n📌 Key Concepts & Theories\n📌 Important Variables & Mechanics\n📌 Summary Outline",
+        "diagram": "DYNAMIC",
+        "diagram_rules": "Generate exactly 1 core diagram (flowchart TD, sequenceDiagram, or timeline) that visually summarizes the core logic or structures.",
+        "flashcards": False,
+        "mcqs": True,
     },
     "AI Auto-Detect": {
         "notes": "📌 Overview\n📌 Key Themes & Concepts\n📌 Detailed Analysis\n📌 Action Items / Summary",
         "diagram": "DYNAMIC",
         "diagram_rules": "DYNAMIC: Analyze the content and intelligently select the BEST Mermaid format (`flowchart TD`, `sequenceDiagram`, or `timeline`). NEVER use `mindmap` or `gantt` charts to prevent frontend crashes.",
         "flashcards": False,
+        "mcqs": False,
     },
 }
 
@@ -188,8 +205,8 @@ def enhance_notes(notes, template="AI Auto-Detect", context_text=""):
     headers_instruction = config["notes"]
 
     mismatch_warning = ""
-    # 🟢 Excludes Flashcards from strict mismatch checking
-    if template not in ["AI Auto-Detect", "Flashcard Generator"]:
+    # 🟢 Excludes Flashcards and MCQs from strict mismatch checking
+    if template not in ["AI Auto-Detect", "Flashcard Generator", "MCQ Generator"]:
         mismatch_warning = f"""
 🚨 CRITICAL CONTENT MISMATCH RULE 🚨:
 If the input text is COMPLETELY UNRELATED to a "{template}" (e.g., the template is 'Bug Triage' but the audio is about 'Ancient Rome'), YOU MUST STILL GENERATE NOTES.
@@ -263,9 +280,13 @@ def enhance_diagram(notes, template="AI Auto-Detect"):
     config = TEMPLATE_CONFIGS.get(template, TEMPLATE_CONFIGS["AI Auto-Detect"])
     diagram_type = config["diagram"]
     diagram_rules = config["diagram_rules"]
-    requires_flashcards = config["flashcards"]
+    requires_flashcards = config.get("flashcards", False)
+    requires_mcqs = config.get("mcqs", False)
 
     # 🚀 NEW: DUAL-MODE INTELLIGENCE
+    flashcard_instruction = "You MUST return an empty array `[]` for `flashcards`."
+    mcq_instruction = "You MUST return an empty array `[]` for `mcqs`."
+
     if requires_flashcards:
         necessity_rule = """
 🚨 DUAL-MODE INTELLIGENCE (CRITICAL) 🚨:
@@ -276,6 +297,17 @@ You must act as both an Educational Architect and a Flashcard Creator.
         diagram_instruction = f"""Generate exactly 1 highly accurate diagram that visually summarizes the text using the `{diagram_type}` format (or dynamic if applicable).
 \nSTRICT RULES: {diagram_rules}"""
         flashcard_instruction = "You MUST generate exactly 5-10 highly detailed Q&A flashcards based on the text. Provide a `front` (the question or concept) and `back` (the detailed answer or definition)."
+    elif requires_mcqs:
+        necessity_rule = """
+🚨 DUAL-MODE INTELLIGENCE (CRITICAL) 🚨:
+You must act as both an Educational Architect and an Exam Creator.
+1. DIAGRAM: Extract the overarching process or structure and map it visually.
+2. MCQS: Extract key concepts and formulate multiple choice questions based on them.
+"""
+        diagram_instruction = f"""Generate exactly 1 highly accurate diagram that visually summarizes the text using the `{diagram_type}` format (or dynamic if applicable).
+\nSTRICT RULES: {diagram_rules}"""
+        mcq_instruction = """You MUST generate exactly 5-10 strict multiple-choice questions (MCQs) based on the text. 
+Each object in the array must have `question` (the prompt), `options` (an array of exactly 4 strings for choices), and `answer` (the correct choice, exactly matching an item in options)."""
     else:
         necessity_rule = """
 🚨 SEMANTIC DIAGRAM REASONING (CRITICAL) 🚨:
@@ -291,10 +323,9 @@ If the input covers multiple distinct structural concepts, generate separate dia
         else:
             diagram_instruction = f"""Generate between 0 and 2 diagrams using the `{diagram_type}` format, depending STRICTLY on necessity. 
 \nSTRICT RULES: {diagram_rules}"""
-        flashcard_instruction = "You MUST return an empty array `[]` for `flashcards`."
 
     mismatch_instruction = ""
-    if template not in ["AI Auto-Detect", "Flashcard Generator"]:
+    if template not in ["AI Auto-Detect", "Flashcard Generator", "MCQ Generator"]:
         mismatch_instruction = f"""
 🚨 TEMPLATE MISMATCH RULE 🚨:
 If the input content makes ABSOLUTELY NO SENSE for a "{template}" diagram, ABORT the `{diagram_type}`. 
@@ -322,6 +353,9 @@ UNIVERSAL MERMAID SAFETY RULES (CRITICAL):
 2. FLASHCARD GENERATION:
 {flashcard_instruction}
 
+3. MCQ GENERATION:
+{mcq_instruction}
+
 YOU MUST RESPOND IN PURE, VALID JSON FORMAT LIKE THIS:
 {{
   "diagrams": [
@@ -334,6 +368,13 @@ YOU MUST RESPOND IN PURE, VALID JSON FORMAT LIKE THIS:
     {{
       "front": "What is the capital of France?",
       "back": "Paris"
+    }}
+  ],
+  "mcqs": [
+    {{
+      "question": "What is 2+2?",
+      "options": ["1", "2", "3", "4"],
+      "answer": "4"
     }}
   ]
 }}
@@ -368,6 +409,8 @@ Input Notes:
                 parsed_json["diagrams"] = []
             if "flashcards" not in parsed_json:
                 parsed_json["flashcards"] = []
+            if "mcqs" not in parsed_json:
+                parsed_json["mcqs"] = []
 
             return json.dumps(parsed_json)
 
@@ -395,6 +438,13 @@ Input Notes:
             {
                 "front": "⚠️ Generation Error",
                 "back": "The AI encountered an error generating flashcards. Please try again.",
+            }
+        ],
+        "mcqs": [
+            {
+                "question": "⚠️ Generation Error",
+                "options": ["A", "B", "C", "D"],
+                "answer": "A"
             }
         ],
     }

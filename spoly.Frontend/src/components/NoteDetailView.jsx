@@ -8,6 +8,7 @@ import {
   Calendar,
   CheckSquare,
   Layers,
+  HelpCircle,
 } from "lucide-react";
 import MermaidDiagram from "./MermaidDiagram";
 import html2pdf from "html2pdf.js";
@@ -54,6 +55,43 @@ const Flashcard = ({ front, back, isDarkMode }) => {
   );
 };
 
+const MCQCard = ({ question, options, answer, isDarkMode }) => {
+  const [selectedOption, setSelectedOption] = useState(null);
+  
+  return (
+    <div className={`w-full p-6 transition-all duration-300 shadow-sm hover:shadow-md rounded-2xl border-2 ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D] text-white" : "bg-white border-slate-200 text-slate-800"}`}>
+      <div className="flex items-start gap-3 mb-4">
+        <div className={`mt-1 flex-shrink-0 flex items-center justify-center w-6 h-6 text-xs font-bold rounded-md ${isDarkMode ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}>Q</div>
+        <h3 className="text-lg font-bold flex-1 leading-snug">{question}</h3>
+      </div>
+      <div className="space-y-3">
+        {options.map((opt, i) => {
+          const isSelected = selectedOption === opt;
+          const isCorrect = String(opt).trim().toLowerCase() === String(answer).trim().toLowerCase();
+          const showResult = selectedOption !== null;
+          
+          let btnClass = isDarkMode ? "bg-[#0b0f19] border-[#2A2F3D] hover:border-[#3b435b] text-slate-300" : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700";
+          if (showResult) {
+            if (isCorrect) btnClass = isDarkMode ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-emerald-50 border-emerald-400 text-emerald-700";
+            else if (isSelected && !isCorrect) btnClass = isDarkMode ? "bg-red-900/40 border-red-500/50 text-red-400" : "bg-red-50 border-red-400 text-red-700";
+          }
+
+          return (
+            <button
+              key={i}
+              disabled={showResult}
+              onClick={() => setSelectedOption(opt)}
+              className={`w-full text-left p-4 rounded-xl border-2 font-medium transition-all duration-300 ${btnClass} ${(showResult && !isCorrect && !isSelected) ? "opacity-30 grayscale" : ""}`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const generateMarkdown = (note) => {
   let md = `# ${note.title || "Spoly Note"}\n\n`;
   md += `**Date:** ${note.date} | **Duration:** ${note.duration || "00:00"}\n\n`;
@@ -90,6 +128,17 @@ const generateMarkdown = (note) => {
     note.flashcards.forEach((card, i) => {
       md += `**Q${i + 1}:** ${card.front}\n\n`;
       md += `**A${i + 1}:** ${card.back}\n\n`;
+    });
+  }
+
+  if (note.mcqs && note.mcqs.length > 0) {
+    md += `## Multiple Choice Questions\n\n`;
+    note.mcqs.forEach((mcq, i) => {
+      md += `**Q${i + 1}:** ${mcq.question}\n\n`;
+      mcq.options.forEach((opt) => {
+        md += `- ${opt}\n`;
+      });
+      md += `\n**Answer:** ${mcq.answer}\n\n`;
     });
   }
 
@@ -236,6 +285,25 @@ export default function NoteDetailView({
           });
         }
 
+        // Add MCQs directly to document if they exist
+        if (selectedNote.mcqs && selectedNote.mcqs.length > 0) {
+          htmlContent += `
+            <div style="page-break-before: always;"></div>
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 16px; margin-top: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Practice MCQs</h2>
+          `;
+
+          selectedNote.mcqs.forEach((mcq, index) => {
+            const optionsHtml = (mcq.options || []).map(opt => `<li style="margin-bottom: 4px;">${opt}</li>`).join('');
+            htmlContent += `
+              <div style="margin-bottom: 16px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+                <p style="font-weight: bold; margin-bottom: 8px;"><span style="color: #4f46e5;">Q${index + 1}:</span> ${mcq.question}</p>
+                <ul style="margin-left: 20px; margin-bottom: 12px; font-size: 14px;">${optionsHtml}</ul>
+                <p><span style="color: #059669; font-weight: bold;">Answer:</span> ${mcq.answer}</p>
+              </div>
+            `;
+          });
+        }
+
         let validDiagrams = [];
         if (
           selectedNote.graphs &&
@@ -339,6 +407,8 @@ export default function NoteDetailView({
 
   const hasFlashcards =
     selectedNote.flashcards && selectedNote.flashcards.length > 0;
+  const hasMcqs =
+    selectedNote.mcqs && selectedNote.mcqs.length > 0;
 
   return (
     <div className="max-w-6xl pb-20 mx-auto space-y-6">
@@ -398,6 +468,15 @@ export default function NoteDetailView({
               <Layers size={16} /> Practice Flashcards
             </button>
           )}
+
+          {hasMcqs && (
+            <button
+              onClick={() => setActiveTab("mcqs")}
+              className={`flex items-center gap-2 px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === "mcqs" ? (isDarkMode ? "bg-indigo-600 text-white shadow-md" : "bg-indigo-500 text-white shadow-md") : isDarkMode ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              <HelpCircle size={16} /> Practice MCQs
+            </button>
+          )}
         </div>
       </div>
 
@@ -417,6 +496,18 @@ export default function NoteDetailView({
                 key={index}
                 front={card.front}
                 back={card.back}
+                isDarkMode={isDarkMode}
+              />
+            ))}
+          </div>
+        ) : activeTab === "mcqs" ? (
+          <div className="grid w-full h-full grid-cols-1 gap-6 p-2 md:grid-cols-2 lg:grid-cols-3">
+            {selectedNote.mcqs.map((mcq, index) => (
+              <MCQCard
+                key={index}
+                question={mcq.question}
+                options={mcq.options || []}
+                answer={mcq.answer}
                 isDarkMode={isDarkMode}
               />
             ))}

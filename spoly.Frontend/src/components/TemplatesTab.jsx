@@ -47,6 +47,19 @@ const SemanticUniqueWireframe = ({ templateName }) => {
   const name = templateName?.trim() || "";
   const baseClasses = "transform translate-x-4 translate-y-4";
   switch (name) {
+    case "Create New Template":
+      return (
+        <svg
+          width="180"
+          height="180"
+          viewBox="0 0 100 100"
+          className={baseClasses}
+        >
+          <rect x="25" y="25" width="50" height="50" rx="8" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray="6 4" />
+          <line x1="50" y1="35" x2="50" y2="65" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+          <line x1="35" y1="50" x2="65" y2="50" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+        </svg>
+      );
     case "System Sequence Diagram":
       return (
         <svg
@@ -1310,6 +1323,8 @@ const SemanticUniqueWireframe = ({ templateName }) => {
 const SemanticUniqueIcon = ({ templateName, size = 28 }) => {
   const name = templateName?.trim() || "";
   switch (name) {
+    case "Create New Template":
+      return <Sparkles size={size} />;
     case "System Sequence Diagram":
       return <Network size={size} />;
     case "Microservices":
@@ -2069,6 +2084,23 @@ export default function TemplatesTab({
     return matchesCategory && matchesSearch;
   });
 
+  const filteredCustom = customTemplates.filter((t) => {
+    const matchesCategory = currentFilter === "All" || currentFilter === "Custom" || (currentFilter === "Favorites" && favorites.includes(t.id));
+    const matchesSearch =
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.desc || t.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  }).map(t => ({...t, isCustom: true, category: "Custom", theme: "slate", description: t.desc}));
+
+  const showCreateCard = (currentFilter === "All" || currentFilter === "Custom") && !searchQuery;
+  const createCardDef = { id: "create-new-template-card", isCreateCard: true, name: "Create New Template", category: "Custom", desc: "Build your own AI instruction frameworks and save them.", theme: "indigo" };
+
+  const allDisplayTemplates = [
+    ...(showCreateCard ? [createCardDef] : []),
+    ...filteredCustom,
+    ...filteredTemplates
+  ];
+
   const getAccentGradient = (themeStr) => {
     if (!themeStr) return "from-blue-500 to-cyan-400";
     if (themeStr.includes("rose") || themeStr.includes("pink"))
@@ -2293,7 +2325,78 @@ export default function TemplatesTab({
       </div>
 
       {/* Grid & Empty State */}
-      {filteredTemplates.length === 0 ? (
+      <AnimatePresence>
+          {showCreateForm && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden mb-8"
+            >
+              <div className={`rounded-2xl border p-6 space-y-4 ${isDarkMode ? "bg-[#1a1f2e] border-[#2a2f3d]" : "bg-white border-slate-200"} shadow-sm`}>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? "text-white" : "text-slate-800"}`}>
+                    <Sparkles size={20} className="text-indigo-500" /> Create Custom Framework
+                  </h3>
+                  <button onClick={() => setShowCreateForm(false)} className={`p-2 rounded-full transition-colors ${isDarkMode ? "hover:bg-[#2A344D] text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}>
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Template Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Research Deep Dive"
+                      value={newTemplate.name}
+                      onChange={(e) => setNewTemplate((p) => ({ ...p, name: e.target.value }))}
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Short Description *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Extracts key findings with citations"
+                      value={newTemplate.desc}
+                      onChange={(e) => setNewTemplate((p) => ({ ...p, desc: e.target.value }))}
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>AI Prompt Instructions *</label>
+                  <textarea
+                    rows={5}
+                    placeholder="Describe exactly how the AI should process and format the transcript."
+                    value={newTemplate.prompt}
+                    onChange={(e) => setNewTemplate((p) => ({ ...p, prompt: e.target.value }))}
+                    className={`w-full rounded-xl border px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
+                  />
+                </div>
+                <div className="flex items-center gap-4 pt-2">
+                  <button
+                    onClick={async () => {
+                      if (!newTemplate.name.trim() || !newTemplate.prompt.trim()) {
+                        showToast("Name and Prompt are required!");
+                        return;
+                      }
+                      await onSaveCustomTemplate(newTemplate);
+                      setNewTemplate({ name: "", desc: "", prompt: "", category: "Custom" });
+                      setShowCreateForm(false);
+                      showToast("Custom template saved!");
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95 transition-all shadow-md"
+                  >
+                    <Sparkles size={15} /> Save Template
+                  </button>
+                  <p className={`text-xs ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Templates are saved to your cloud account.</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+      </AnimatePresence>
+      {allDisplayTemplates.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2329,7 +2432,7 @@ export default function TemplatesTab({
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
           <AnimatePresence>
-            {filteredTemplates.map((temp) => {
+            {allDisplayTemplates.map((temp) => {
               const themeClass = getTheme(temp.theme, isDarkMode);
               const isFav = favorites.includes(temp.id);
 
@@ -2341,6 +2444,10 @@ export default function TemplatesTab({
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                   onClick={() => {
+                    if (temp.isCreateCard) {
+                      setShowCreateForm(p => !p);
+                      return;
+                    }
                     setActiveAiTemplate(temp);
                     setActiveTab("workspace");
                     showToast(`Template Set: ${temp.name}`);
@@ -2363,13 +2470,30 @@ export default function TemplatesTab({
                     <SemanticUniqueWireframe templateName={temp.name} />
                   </div>
 
-                  <button
-                    onClick={(e) => toggleFavorite(e, temp.id)}
-                    className={`absolute top-4 right-4 z-20 p-2.5 rounded-xl backdrop-blur-md transition-all duration-300 ${isFav ? (isDarkMode ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 opacity-100 shadow-[0_0_15px_rgba(251,191,36,0.2)]" : "bg-amber-50 text-amber-500 border border-amber-200 opacity-100") : isDarkMode ? "bg-[#13151a]/80 text-slate-500 border border-[#2E364F] opacity-0 group-hover:opacity-100 hover:text-amber-400" : "bg-white/80 text-slate-400 border border-slate-200 opacity-0 group-hover:opacity-100 hover:text-amber-500"}`}
-                    title={isFav ? "Remove from Favorites" : "Add to Favorites"}
-                  >
-                    <Star size={16} className={isFav ? "fill-current" : ""} />
-                  </button>
+                  <div className="absolute top-4 right-4 z-20 flex gap-2">
+                    {temp.isCustom && !temp.isCreateCard && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteCustomTemplate(temp.id);
+                          showToast("Custom Template Deleted");
+                        }}
+                        className={`p-2.5 rounded-xl backdrop-blur-md transition-all duration-300 ${isDarkMode ? "bg-red-500/20 text-red-400 border border-red-500/30 opacity-0 group-hover:opacity-100 shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:bg-red-500/40 hover:text-red-300" : "bg-red-50 text-red-500 border border-red-200 opacity-0 group-hover:opacity-100 hover:bg-red-100"}`}
+                        title="Delete template"
+                      >
+                        <X size={16} className="font-bold stroke-[3]" />
+                      </button>
+                    )}
+                    {!temp.isCreateCard && (
+                      <button
+                        onClick={(e) => toggleFavorite(e, temp.id)}
+                        className={`p-2.5 rounded-xl backdrop-blur-md transition-all duration-300 ${isFav ? (isDarkMode ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 opacity-100 shadow-[0_0_15px_rgba(251,191,36,0.2)]" : "bg-amber-50 text-amber-500 border border-amber-200 opacity-100") : isDarkMode ? "bg-[#13151a]/80 text-slate-500 border border-[#2E364F] opacity-0 group-hover:opacity-100 hover:text-amber-400" : "bg-white/80 text-slate-400 border border-slate-200 opacity-0 group-hover:opacity-100 hover:text-amber-500"}`}
+                        title={isFav ? "Remove from Favorites" : "Add to Favorites"}
+                      >
+                        <Star size={16} className={isFav ? "fill-current" : ""} />
+                      </button>
+                    )}
+                  </div>
 
                   <div className="relative z-10 flex items-start justify-between mb-auto w-full pr-12">
                     <div
@@ -2400,27 +2524,41 @@ export default function TemplatesTab({
                       <div
                         className={`absolute top-12 left-0 w-full flex items-center gap-3 transition-all duration-300 group-hover:top-0 opacity-0 group-hover:opacity-100`}
                       >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveAiTemplate(temp);
-                            setActiveTab("workspace");
-                            showToast(`Template Set: ${temp.name}`);
-                          }}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-sm transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-95 ${isDarkMode ? "bg-indigo-500 text-white border border-indigo-400/50 hover:bg-indigo-400" : "bg-indigo-600 text-white border border-transparent hover:bg-indigo-700"}`}
-                        >
-                          Use Framework <ArrowRight size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewTemplate(temp);
-                          }}
-                          className={`flex-none p-2.5 rounded-xl flex items-center justify-center transition-all border active:scale-95 ${isDarkMode ? "bg-[#1F263B] text-slate-300 border-[#2E364F] hover:bg-[#2A344D] hover:text-white" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
-                          title="Preview Output"
-                        >
-                          <Eye size={18} />
-                        </button>
+                        {temp.isCreateCard ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowCreateForm(p => !p);
+                            }}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-sm transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-95 ${isDarkMode ? "bg-indigo-500 text-white border border-indigo-400/50 hover:bg-indigo-400" : "bg-indigo-600 text-white border border-transparent hover:bg-indigo-700"}`}
+                          >
+                            <Sparkles size={16} /> Create Now
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveAiTemplate(temp);
+                                setActiveTab("workspace");
+                                showToast(`Template Set: ${temp.name}`);
+                              }}
+                              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-sm transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-95 ${isDarkMode ? "bg-indigo-500 text-white border border-indigo-400/50 hover:bg-indigo-400" : "bg-indigo-600 text-white border border-transparent hover:bg-indigo-700"}`}
+                            >
+                              Use Framework <ArrowRight size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewTemplate(temp);
+                              }}
+                              className={`flex-none p-2.5 rounded-xl flex items-center justify-center transition-all border active:scale-95 ${isDarkMode ? "bg-[#1F263B] text-slate-300 border-[#2E364F] hover:bg-[#2A344D] hover:text-white" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+                              title="Preview Output"
+                            >
+                              <Eye size={18} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2430,132 +2568,6 @@ export default function TemplatesTab({
           </AnimatePresence>
         </div>
       )}
-
-      {/* ─── CUSTOM TEMPLATES SECTION ─── */}
-      <div className={`mt-10 rounded-[2rem] border p-8 ${isDarkMode ? "bg-[#131722] border-[#232a3b]" : "bg-slate-50 border-slate-200"}`}>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className={`text-xl font-extrabold ${isDarkMode ? "text-white" : "text-slate-900"}`}>My Custom Templates</h3>
-            <p className={`text-sm mt-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Build your own AI instruction frameworks and save them to the cloud.</p>
-          </div>
-          <button
-            onClick={() => setShowCreateForm((p) => !p)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border shadow-sm ${isDarkMode ? "bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-500" : "bg-indigo-600 text-white border-transparent hover:bg-indigo-700"}`}
-          >
-            <Sparkles size={16} />
-            {showCreateForm ? "Cancel" : "New Template"}
-          </button>
-        </div>
-
-        {/* CREATE FORM */}
-        <AnimatePresence>
-          {showCreateForm && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden mb-8"
-            >
-              <div className={`rounded-2xl border p-6 space-y-4 ${isDarkMode ? "bg-[#1a1f2e] border-[#2a2f3d]" : "bg-white border-slate-200"} shadow-sm`}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Template Name *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Research Deep Dive"
-                      value={newTemplate.name}
-                      onChange={(e) => setNewTemplate((p) => ({ ...p, name: e.target.value }))}
-                      className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Short Description *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Extracts key findings with citations"
-                      value={newTemplate.desc}
-                      onChange={(e) => setNewTemplate((p) => ({ ...p, desc: e.target.value }))}
-                      className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className={`block text-xs font-bold mb-1.5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>AI Prompt Instructions *</label>
-                  <textarea
-                    rows={5}
-                    placeholder="Describe exactly how the AI should process and format the transcript. e.g. 'Structure the output as a research summary with: Key Findings, Methodology, Open Questions, and a Glossary of important terms.'"
-                    value={newTemplate.prompt}
-                    onChange={(e) => setNewTemplate((p) => ({ ...p, prompt: e.target.value }))}
-                    className={`w-full rounded-xl border px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition-all ${isDarkMode ? "bg-[#0b0f19] border-[#2a2f3d] text-slate-200 placeholder-slate-600" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"}`}
-                  />
-                </div>
-                <div className="flex items-center gap-4 pt-2">
-                  <button
-                    onClick={async () => {
-                      if (!newTemplate.name.trim() || !newTemplate.prompt.trim()) {
-                        showToast("Name and Prompt are required!");
-                        return;
-                      }
-                      await onSaveCustomTemplate(newTemplate);
-                      setNewTemplate({ name: "", desc: "", prompt: "", category: "Custom" });
-                      setShowCreateForm(false);
-                    }}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95 transition-all shadow-md"
-                  >
-                    <Sparkles size={15} /> Save Template
-                  </button>
-                  <p className={`text-xs ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>Templates are saved to your cloud account.</p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* CUSTOM TEMPLATE CARDS */}
-        {customTemplates.length === 0 ? (
-          <div className={`flex flex-col items-center justify-center py-12 rounded-2xl border-dashed border-2 ${isDarkMode ? "border-[#2a2f3d] text-slate-500" : "border-slate-200 text-slate-400"}`}>
-            <Sparkles size={32} className="mb-3 opacity-40" />
-            <p className="font-bold text-sm">No custom templates yet</p>
-            <p className="text-xs mt-1">Click "New Template" to create your first AI framework.</p>
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {customTemplates.map((temp) => (
-              <motion.div
-                key={temp.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`group relative flex flex-col p-5 rounded-2xl border transition-all hover:shadow-md ${isDarkMode ? "bg-[#1a1f2e] border-[#2a2f3d] hover:border-indigo-500/40" : "bg-white border-slate-200 hover:border-indigo-300"}`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`p-2 rounded-xl ${isDarkMode ? "bg-indigo-900/30 text-indigo-400" : "bg-indigo-50 text-indigo-600"}`}>
-                    <Sparkles size={18} />
-                  </div>
-                  <button
-                    onClick={() => onDeleteCustomTemplate(temp.id)}
-                    className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all ${isDarkMode ? "text-red-400 hover:bg-red-900/20" : "text-red-500 hover:bg-red-50"}`}
-                    title="Delete template"
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-                <h4 className={`font-extrabold text-sm mb-1 ${isDarkMode ? "text-slate-100" : "text-slate-800"}`}>{temp.name}</h4>
-                <p className={`text-xs leading-relaxed flex-1 mb-4 line-clamp-2 ${isDarkMode ? "text-slate-500" : "text-slate-500"}`}>{temp.desc}</p>
-                <button
-                  onClick={() => {
-                    setActiveAiTemplate({ ...temp, isCustom: true });
-                    setActiveTab("workspace");
-                    showToast(`Template Set: ${temp.name}`);
-                  }}
-                  className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all active:scale-95 border ${isDarkMode ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20" : "bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100"}`}
-                >
-                  Use Framework <ArrowRight size={13} />
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

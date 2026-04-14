@@ -2290,6 +2290,7 @@ import {
   Maximize2,
   ArrowDown,
   Loader2,
+  HelpCircle,
 } from "lucide-react";
 
 import {
@@ -2335,13 +2336,15 @@ const decodeBase64ToBlob = async (base64Data) => {
 const parseBackendDiagrams = (diagramString) => {
   let processedDiagrams = [];
   let processedFlashcards = [];
+  let processedMcqs = [];
   if (!diagramString || diagramString === "API FAILED")
-    return { processedDiagrams, processedFlashcards };
+    return { processedDiagrams, processedFlashcards, processedMcqs };
 
   try {
     const parsedData = JSON.parse(diagramString);
     const rawDiagrams = parsedData.diagrams || [];
     processedFlashcards = parsedData.flashcards || [];
+    processedMcqs = parsedData.mcqs || [];
 
     processedDiagrams = rawDiagrams
       .map((diag) => {
@@ -2473,7 +2476,7 @@ const parseBackendDiagrams = (diagramString) => {
   } catch (e) {
     console.error("Failed to parse diagram/flashcard JSON:", e);
   }
-  return { processedDiagrams, processedFlashcards };
+  return { processedDiagrams, processedFlashcards, processedMcqs };
 };
 
 const Flashcard = ({ front, back, isDarkMode }) => {
@@ -2514,6 +2517,40 @@ const Flashcard = ({ front, back, isDarkMode }) => {
           <p className="text-lg font-medium">{back}</p>
         </div>
       </motion.div>
+    </div>
+  );
+};
+
+const MCQCard = ({ question, options, answer, isDarkMode }) => {
+  const [selectedOption, setSelectedOption] = useState(null);
+  return (
+    <div className={`w-full p-6 transition-all duration-300 shadow-sm hover:shadow-md rounded-2xl border-2 ${isDarkMode ? "bg-[#1a1f2e] border-[#2A2F3D] text-white" : "bg-white border-slate-200 text-slate-800"}`}>
+      <div className="flex items-start gap-3 mb-4">
+        <div className={`mt-1 flex-shrink-0 flex items-center justify-center w-6 h-6 text-xs font-bold rounded-md ${isDarkMode ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-100 text-indigo-600"}`}>Q</div>
+        <h3 className="text-lg font-bold flex-1 leading-snug">{question}</h3>
+      </div>
+      <div className="space-y-3">
+        {options.map((opt, i) => {
+          const isSelected = selectedOption === opt;
+          const isCorrect = String(opt).trim().toLowerCase() === String(answer).trim().toLowerCase();
+          const showResult = selectedOption !== null;
+          let btnClass = isDarkMode ? "bg-[#0b0f19] border-[#2A2F3D] hover:border-[#3b435b] text-slate-300" : "bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700";
+          if (showResult) {
+            if (isCorrect) btnClass = isDarkMode ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-emerald-50 border-emerald-400 text-emerald-700";
+            else if (isSelected && !isCorrect) btnClass = isDarkMode ? "bg-red-900/40 border-red-500/50 text-red-400" : "bg-red-50 border-red-400 text-red-700";
+          }
+          return (
+            <button
+              key={i}
+              disabled={showResult}
+              onClick={() => setSelectedOption(opt)}
+              className={`w-full text-left p-4 rounded-xl border-2 font-medium transition-all duration-300 ${btnClass} ${showResult && !isCorrect && !isSelected ? "opacity-30 grayscale" : ""}`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -2889,6 +2926,7 @@ export default function LiveNotes() {
   const [actionItems, setActionItems] = useState([]);
   const [editableMermaids, setEditableMermaids] = useState([]);
   const [editableFlashcards, setEditableFlashcards] = useState([]);
+  const [editableMcqs, setEditableMcqs] = useState([]);
   const [savedNotes, setSavedNotes] = useState([]);
 
   // Fetch notes from MongoDB on page load
@@ -2922,6 +2960,7 @@ export default function LiveNotes() {
               summary: n.generated_notes,
               graphs: parsedDiagramData.diagrams || [],
               flashcards: parsedDiagramData.flashcards || [],
+              mcqs: parsedDiagramData.mcqs || [],
               audioUrl: null,
             };
           });
@@ -3357,6 +3396,7 @@ export default function LiveNotes() {
         "Summary generation failed.",
       graphs: fetchedData?.graphs || editableMermaids,
       flashcards: fetchedData?.flashcards || editableFlashcards,
+      mcqs: fetchedData?.mcqs || editableMcqs,
       audioUrl: overrideAudioUrl || currentAudioUrl,
     };
     setSavedNotes((prev) => [newNote, ...prev]);
@@ -3366,6 +3406,7 @@ export default function LiveNotes() {
       const diagramDataToSave = JSON.stringify({
         diagrams: fetchedData?.graphs || editableMermaids,
         flashcards: fetchedData?.flashcards || editableFlashcards,
+        mcqs: fetchedData?.mcqs || editableMcqs,
       });
 
       fetch(`${BACKEND_URL}/api/notes/save`, {
@@ -3431,7 +3472,7 @@ export default function LiveNotes() {
         data.transcript || "No transcript returned by the AI.";
       const generatedSummary = data.notes || "No notes generated by the AI.";
 
-      const { processedDiagrams, processedFlashcards } = parseBackendDiagrams(
+      const { processedDiagrams, processedFlashcards, processedMcqs } = parseBackendDiagrams(
         data.diagram,
       );
 
@@ -3443,6 +3484,7 @@ export default function LiveNotes() {
       });
       setEditableMermaids(processedDiagrams);
       setEditableFlashcards(processedFlashcards);
+      setEditableMcqs(processedMcqs);
 
       // Only call finish processing on absolute success!
       finishProcessing(defaultTitle, overrideAudioUrl || currentAudioUrl, {
@@ -3450,6 +3492,7 @@ export default function LiveNotes() {
         summary: generatedSummary,
         graphs: processedDiagrams,
         flashcards: processedFlashcards,
+        mcqs: processedMcqs,
       });
     } catch (error) {
       console.error("Backend Error:", error);
@@ -3581,6 +3624,7 @@ export default function LiveNotes() {
 
       let processedDiagrams = [];
       let processedFlashcards = [];
+      let processedMcqs = [];
       try {
         const parsed =
           typeof fetchedData.diagram === "string"
@@ -3588,6 +3632,7 @@ export default function LiveNotes() {
             : fetchedData.diagram;
         if (parsed?.diagrams) processedDiagrams = parsed.diagrams;
         if (parsed?.flashcards) processedFlashcards = parsed.flashcards;
+        if (parsed?.mcqs) processedMcqs = parsed.mcqs;
       } catch {
         /* ignore parse errors */
       }
@@ -3597,24 +3642,21 @@ export default function LiveNotes() {
         : "Text Note";
 
       setTimeout(() => {
-        setStatus("success");
-        isFinalizingRef.current = false;
-        setSuccessData({
-          title: finalTitle,
-          date: new Date().toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
-          source_type: "text",
-          duration: "—",
+        setMeetingNotes({
+          summary: fetchedData.summary || fetchedData.notes || "",
+          takeaways: "",
+          decisions: "",
+        });
+        setEditableMermaids(processedDiagrams);
+        setEditableFlashcards(processedFlashcards);
+        setEditableMcqs(processedMcqs);
+
+        finishProcessing(finalTitle, null, {
+          transcript: textInput.trim(),
           summary: fetchedData.summary || fetchedData.notes || "",
           graphs: processedDiagrams,
           flashcards: processedFlashcards,
-          clerk_id: user?.id || "",
-          transcript: textInput.trim(),
-          diagram_data: fetchedData.diagram || "",
-          tags: [activeAiTemplate?.category || "Text"],
+          mcqs: processedMcqs
         });
         setTextInput("");
       }, 800);
@@ -3714,10 +3756,11 @@ export default function LiveNotes() {
             decisions: "",
           });
 
-          const { processedDiagrams, processedFlashcards } =
+          const { processedDiagrams, processedFlashcards, processedMcqs } =
             parseBackendDiagrams(data.diagram);
           setEditableMermaids(processedDiagrams);
           setEditableFlashcards(processedFlashcards);
+          setEditableMcqs(processedMcqs);
 
           setTimeout(() => {
             finishProcessing("YouTube Video Notes", null, {
@@ -3725,6 +3768,7 @@ export default function LiveNotes() {
               summary: data.notes,
               graphs: processedDiagrams,
               flashcards: processedFlashcards,
+              mcqs: processedMcqs,
             });
             setYoutubeUrl("");
           }, 1000);
@@ -3774,6 +3818,7 @@ export default function LiveNotes() {
     setContextFiles([]);
     setEditableMermaids([]);
     setEditableFlashcards([]);
+    setEditableMcqs([]);
     setContextTheme(null);
     capturedTitleRef.current = "";
     extensionAudioChunksRef.current = [];
@@ -3886,6 +3931,18 @@ export default function LiveNotes() {
                 </motion.div>
               )}
 
+            {activeTab === "workspace" && (
+              <button
+                onClick={() => setActiveTab("templates")}
+                className={`flex items-center rounded-xl px-4 py-2 shadow-sm gap-2 transition-all hover:scale-105 hover:shadow-md cursor-pointer border ${isDarkMode ? "bg-indigo-900/30 border-indigo-500/30 text-indigo-300 hover:border-indigo-400/50" : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:border-indigo-300"}`}
+                title="Click to view or change the active AI template"
+              >
+                <Sparkles size={16} className="text-indigo-500" />
+                <span className="text-xs font-bold truncate max-w-[140px]">
+                  {activeAiTemplate ? activeAiTemplate.name : "AI Auto-Detect"}
+                </span>
+              </button>
+            )}
             {activeTab === "workspace" && status === "idle" && (
               <>
                 <div
@@ -3909,7 +3966,7 @@ export default function LiveNotes() {
                   </select>
                 </div>
                 <div
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors ${isDarkMode ? "bg-emerald-900/20 border border-emerald-800/50 text-emerald-400" : "bg-emerald-100 border border-emerald-200 text-emerald-700"}`}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors hidden sm:flex ${isDarkMode ? "bg-emerald-900/20 border border-emerald-800/50 text-emerald-400" : "bg-emerald-100 border border-emerald-200 text-emerald-700"}`}
                 >
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>{" "}
                   Ready
@@ -4570,6 +4627,15 @@ export default function LiveNotes() {
                             <Layers size={16} /> Practice Flashcards
                           </button>
                         )}
+
+                        {editableMcqs.length > 0 && (
+                          <button
+                            onClick={() => setSuccessView("mcqs")}
+                            className={`flex items-center gap-2 px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${successView === "mcqs" ? (isDarkMode ? "bg-indigo-600 text-white shadow-md" : "bg-indigo-500 text-white shadow-md") : isDarkMode ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+                          >
+                            <HelpCircle size={16} /> Practice MCQs
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -4592,6 +4658,18 @@ export default function LiveNotes() {
                               key={index}
                               front={card.front}
                               back={card.back}
+                              isDarkMode={isDarkMode}
+                            />
+                          ))}
+                        </div>
+                      ) : successView === "mcqs" ? (
+                        <div className="grid w-full h-full grid-cols-1 gap-6 p-2 md:grid-cols-2 lg:grid-cols-3">
+                          {editableMcqs.map((mcq, index) => (
+                            <MCQCard
+                              key={index}
+                              question={mcq.question}
+                              options={mcq.options || []}
+                              answer={mcq.answer}
                               isDarkMode={isDarkMode}
                             />
                           ))}
