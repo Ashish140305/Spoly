@@ -197,25 +197,62 @@ TEMPLATE_CONFIGS = {
 # =====================================================================
 # 🚀 1. NOTES GENERATOR (INTEGRATED FORMATTING)
 # =====================================================================
-def enhance_notes(notes, template="AI Auto-Detect", context_text=""):
+def enhance_notes(notes, template="AI Auto-Detect", context_text="", custom_prompt=None):
     if not GROQ_API_KEY:
         return None
 
-    config = TEMPLATE_CONFIGS.get(template, TEMPLATE_CONFIGS["AI Auto-Detect"])
-    headers_instruction = config["notes"]
+    # 🟢 CUSTOM TEMPLATE HANDLING: If a custom prompt is provided, use it directly
+    if custom_prompt:
+        context_section = ""
+        if context_text and context_text.strip():
+            context_section = f"""
+CONTEXT DOCUMENTS PROVIDED:
+The following context has been provided to help you understand specific terminology and background information. Use this context to better interpret the transcript:
+---
+{context_text}
+---
+"""
 
-    mismatch_warning = ""
-    # 🟢 Excludes Flashcards and MCQs from strict mismatch checking
-    if template not in ["AI Auto-Detect", "Flashcard Generator", "MCQ Generator"]:
-        mismatch_warning = f"""
+        prompt = f"""You are an elite, highly intelligent Note-Taker. The user has created a CUSTOM framework with these instructions:
+
+--- USER'S CUSTOM INSTRUCTIONS ---
+{custom_prompt}
+--- END CUSTOM INSTRUCTIONS ---
+
+{context_section}
+
+CRITICAL DATA RETENTION RULE:
+Do NOT over-summarize. Extract ALL crucial sentences, facts, numbers, and nuances from the input. Keep explanations highly detailed, utilizing complete sentences. Do not drop important data.
+
+FORMAT STRICTLY:
+- Main Category Headers MUST start with `📌 ` or `# `
+- Sub-Category Headers MUST start with `## `
+- Minor details/sections MUST start with `### `
+- Use detailed, descriptive bullet points (`- ` or `* `).
+- Bold **key terms** for readability.
+
+Follow the user's custom instructions above closely and structure the notes accordingly.
+
+Raw Input Transcript:
+{notes}
+"""
+    else:
+        # Standard template flow
+        config = TEMPLATE_CONFIGS.get(template, TEMPLATE_CONFIGS["AI Auto-Detect"])
+        headers_instruction = config["notes"]
+
+        mismatch_warning = ""
+        # 🟢 Excludes Flashcards and MCQs from strict mismatch checking
+        if template not in ["AI Auto-Detect", "Flashcard Generator", "MCQ Generator"]:
+            mismatch_warning = f"""
 🚨 CRITICAL CONTENT MISMATCH RULE 🚨:
 If the input text is COMPLETELY UNRELATED to a "{template}" (e.g., the template is 'Bug Triage' but the audio is about 'Ancient Rome'), YOU MUST STILL GENERATE NOTES.
 Do NOT leave it blank. Instead, prepend this EXACT warning at the very top:
 "📌 **⚠️ Content Mismatch Indicator**: The provided audio does not align with the '{template}' framework. Notes have been dynamically extracted based on actual content."
 """
-    context_section = ""
-    if context_text and context_text.strip():
-        context_section = f"""
+        context_section = ""
+        if context_text and context_text.strip():
+            context_section = f"""
 CONTEXT DOCUMENTS PROVIDED:
 The following context has been provided to help you understand specific terminology and background information. Use this context to better interpret the transcript:
 ---
@@ -224,7 +261,7 @@ The following context has been provided to help you understand specific terminol
 """
 
 
-    prompt = f"""You are an elite, highly intelligent Note-Taker. The user has selected the "{template}" framework.
+        prompt = f"""You are an elite, highly intelligent Note-Taker. The user has selected the "{template}" framework.
 
 {mismatch_warning}
 
@@ -274,7 +311,7 @@ Raw Input Transcript:
 # =====================================================================
 # 🚀 2. DIAGRAM & FLASHCARD GENERATOR (SMART DUAL-MODE)
 # =====================================================================
-def enhance_diagram(notes, template="AI Auto-Detect"):
+def enhance_diagram(notes, template="AI Auto-Detect", custom_prompt=None):
     url = "https://api.groq.com/openai/v1/chat/completions"
 
     config = TEMPLATE_CONFIGS.get(template, TEMPLATE_CONFIGS["AI Auto-Detect"])

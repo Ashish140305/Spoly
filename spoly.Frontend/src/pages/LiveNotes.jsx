@@ -2810,10 +2810,10 @@ export default function LiveNotes() {
 
   useEffect(() => {
     if (user?.id && !hasFetchedTemplates) {
-      fetch(`http://127.0.0.1:8000/api/templates/${user.id}`)
+      fetch(`${BACKEND_URL}/api/templates/${user.id}`)
         .then((res) => res.json())
         .then((data) => {
-          if (data.templates) setCustomTemplates(data.templates);
+          if (data.templates) setCustomTemplates(data.templates.map(t => ({ ...t, isCustom: true })));
           setHasFetchedTemplates(true);
         })
         .catch((err) => {
@@ -2826,14 +2826,15 @@ export default function LiveNotes() {
   const handleSaveCustomTemplate = async (templateData) => {
     if (!user?.id) return;
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/templates/", {
+      const res = await fetch(`${BACKEND_URL}/api/templates/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...templateData, clerk_id: user.id }),
       });
       const data = await res.json();
       if (data.success && data.template) {
-        setCustomTemplates((prev) => [...prev, data.template]);
+        // Ensure isCustom flag is always present for the AI pipeline
+        setCustomTemplates((prev) => [...prev, { ...data.template, isCustom: true }]);
         showToast("Custom template saved!");
       }
     } catch (err) {
@@ -2845,7 +2846,7 @@ export default function LiveNotes() {
   const handleDeleteCustomTemplate = async (templateId) => {
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/api/templates/${templateId}`,
+        `${BACKEND_URL}/api/templates/${templateId}`,
         { method: "DELETE" },
       );
       const data = await res.json();
@@ -3668,7 +3669,7 @@ export default function LiveNotes() {
     }
   };
 
-  // YouTube processing Extension Proxy
+  // YouTube processing — Extension first with backend fallback
   const processYoutube = async (e) => {
     e.preventDefault();
     if (!youtubeUrl.trim()) return;
@@ -3682,7 +3683,7 @@ export default function LiveNotes() {
     const videoId = match[1];
 
     setProcessingType("youtube");
-    setFileName("Extension is fetching Transcript...");
+    setFileName("Fetching YouTube Transcript...");
     setStatus("uploading");
     setUploadProgress(0);
     isFinalizingRef.current = false;
@@ -3694,84 +3695,163 @@ export default function LiveNotes() {
       setUploadProgress(Math.min(progress, 40));
     }, 500);
 
+    // Helper: process the AI pipeline after we have a transcript (shared by both paths)
+    const processTranscriptThroughAI = async (transcriptText) => {
+      setFileName("AI is Analyzing Transcript...");
+      setUploadProgress(50);
+
+      const formData = new FormData();
+      formData.append("transcript", transcriptText);
+      formData.append(
+        "template",
+        activeAiTemplateRef.current?.name || "AI Auto-Detect",
+      );
+      if (
+        activeAiTemplateRef.current?.isCustom &&
+        activeAiTemplateRef.current?.prompt
+      ) {
+        formData.append(
+          "custom_prompt",
+          activeAiTemplateRef.current.prompt,
+        );
+      }
+
+      if (contextFiles && contextFiles.length > 0) {
+        contextFiles.forEach((file) => {
+          formData.append("context_files", file);
+        });
+      }
+
+      const response = await fetch(
+        `${BACKEND_URL}/api/notes/process-text`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      clearInterval(uploadRef.current);
+      setUploadProgress(100);
+      setStatus("processing");
+
+      if (!response.ok)
+        throw new Error(`Server returned Code ${response.status}`);
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      setTranscript(data.transcript || "");
+      setMeetingNotes({
+        summary: data.notes || "",
+        takeaways: "",
+        decisions: "",
+      });
+
+      const { processedDiagrams, processedFlashcards, processedMcqs } =
+        parseBackendDiagrams(data.diagram);
+      setEditableMermaids(processedDiagrams);
+      setEditableFlashcards(processedFlashcards);
+      setEditableMcqs(processedMcqs);
+
+      setTimeout(() => {
+        finishProcessing("YouTube Video Notes", null, {
+          transcript: data.transcript,
+          summary: data.notes,
+          graphs: processedDiagrams,
+          flashcards: processedFlashcards,
+          mcqs: processedMcqs,
+        });
+        setYoutubeUrl("");
+      }, 1000);
+    };
+
+    // Helper: call the backend directly to fetch transcript + generate notes
+    const processViaBackend = async () => {
+      setFileName("Server is fetching YouTube Transcript...");
+      try {
+        const formData = new FormData();
+        formData.append("url", youtubeUrl);
+        formData.append(
+          "template",
+          activeAiTemplateRef.current?.name || "AI Auto-Detect",
+        );
+        if (
+          activeAiTemplateRef.current?.isCustom &&
+          activeAiTemplateRef.current?.prompt
+        ) {
+          formData.append("custom_prompt", activeAiTemplateRef.current.prompt);
+        }
+        if (contextFiles && contextFiles.length > 0) {
+          contextFiles.forEach((file) => {
+            formData.append("context_files", file);
+          });
+        }
+
+        const response = await fetch(
+          `${BACKEND_URL}/api/notes/youtube`,
+          {
+            method: "POST",
+            body: formData,
+          },
+        );
+
+        clearInterval(uploadRef.current);
+        setUploadProgress(100);
+        setStatus("processing");
+
+        if (!response.ok)
+          throw new Error(`Server returned Code ${response.status}`);
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        setTranscript(data.transcript || "");
+        setMeetingNotes({
+          summary: data.notes || "",
+          takeaways: "",
+          decisions: "",
+        });
+
+        const { processedDiagrams, processedFlashcards, processedMcqs } =
+          parseBackendDiagrams(data.diagram);
+        setEditableMermaids(processedDiagrams);
+        setEditableFlashcards(processedFlashcards);
+        setEditableMcqs(processedMcqs);
+
+        setTimeout(() => {
+          finishProcessing("YouTube Video Notes", null, {
+            transcript: data.transcript,
+            summary: data.notes,
+            graphs: processedDiagrams,
+            flashcards: processedFlashcards,
+            mcqs: processedMcqs,
+          });
+          setYoutubeUrl("");
+        }, 1000);
+      } catch (err) {
+        clearInterval(uploadRef.current);
+        alert("⚠️ YouTube Processing Failed!\n\nDetails: " + err.message);
+        setStatus("idle");
+      }
+    };
+
+    // Try extension first, fallback to backend after 5 seconds
+    let extensionResponded = false;
+
     const handleYtResult = async (event) => {
       if (event.data.type === "SPOLY_YT_RESULT") {
+        extensionResponded = true;
         window.removeEventListener("message", handleYtResult);
 
         if (!event.data.success) {
-          clearInterval(uploadRef.current);
-          setStatus("idle");
-          alert("⚠️ Extension Failed to fetch transcript: " + event.data.error);
+          // Extension failed — try backend directly
+          console.warn("Extension failed, falling back to backend:", event.data.error);
+          await processViaBackend();
           return;
         }
 
-        setFileName("AI is Analyzing Transcript...");
-        setUploadProgress(50);
-
         try {
-          const formData = new FormData();
-          formData.append("transcript", event.data.text);
-          formData.append(
-            "template",
-            activeAiTemplateRef.current?.name || "AI Auto-Detect",
-          );
-          if (
-            activeAiTemplateRef.current?.isCustom &&
-            activeAiTemplateRef.current?.prompt
-          ) {
-            formData.append(
-              "custom_prompt",
-              activeAiTemplateRef.current.prompt,
-            );
-          }
-
-          if (contextFiles && contextFiles.length > 0) {
-            contextFiles.forEach((file) => {
-              formData.append("context_files", file);
-            });
-          }
-
-          const response = await fetch(
-            `${BACKEND_URL}/api/notes/process-text`,
-            {
-              method: "POST",
-              body: formData,
-            },
-          );
-
-          clearInterval(uploadRef.current);
-          setUploadProgress(100);
-          setStatus("processing");
-
-          if (!response.ok)
-            throw new Error(`Server returned Code ${response.status}`);
-
-          const data = await response.json();
-          if (data.error) throw new Error(data.error);
-
-          setTranscript(data.transcript || "");
-          setMeetingNotes({
-            summary: data.notes || "",
-            takeaways: "",
-            decisions: "",
-          });
-
-          const { processedDiagrams, processedFlashcards, processedMcqs } =
-            parseBackendDiagrams(data.diagram);
-          setEditableMermaids(processedDiagrams);
-          setEditableFlashcards(processedFlashcards);
-          setEditableMcqs(processedMcqs);
-
-          setTimeout(() => {
-            finishProcessing("YouTube Video Notes", null, {
-              transcript: data.transcript,
-              summary: data.notes,
-              graphs: processedDiagrams,
-              flashcards: processedFlashcards,
-              mcqs: processedMcqs,
-            });
-            setYoutubeUrl("");
-          }, 1000);
+          await processTranscriptThroughAI(event.data.text);
         } catch (err) {
           clearInterval(uploadRef.current);
           alert("⚠️ Processing Failed!\n\nDetails: " + err.message);
@@ -3782,6 +3862,15 @@ export default function LiveNotes() {
 
     window.addEventListener("message", handleYtResult);
     window.postMessage({ type: "SPOLY_FETCH_YT_TRANSCRIPT", videoId }, "*");
+
+    // Fallback: if extension doesn't respond in 5 seconds, use backend directly
+    setTimeout(async () => {
+      if (!extensionResponded) {
+        window.removeEventListener("message", handleYtResult);
+        console.log("Extension not detected, using backend YouTube endpoint...");
+        await processViaBackend();
+      }
+    }, 5000);
   };
 
   const handleReset = () => {

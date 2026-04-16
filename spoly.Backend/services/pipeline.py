@@ -5,20 +5,20 @@ from services.diagram import generate_diagram_local
 from services.enhancer import enhance_notes, enhance_diagram
 
 
-def run_pipeline(text, template="Standard Study Notes", context_text=""):
+def run_pipeline(text, template="Standard Study Notes", context_text="", custom_prompt=None):
 
     notes = generate_notes(text)
 
-    # Pass the template to the note enhancer
-    improved_notes = enhance_notes(notes, template, context_text)
+    # Pass the template and custom_prompt to the note enhancer
+    improved_notes = enhance_notes(notes, template, context_text, custom_prompt)
     if improved_notes:
         notes = improved_notes
 
     print("⏳ Pausing for 6 seconds to bypass Groq's 429 Rate Limit...")
     time.sleep(6)
 
-    # Pass the template to the diagram enhancer
-    diagram_json_string = enhance_diagram(notes, template)
+    # Pass the template and custom_prompt to the diagram enhancer
+    diagram_json_string = enhance_diagram(notes, template, custom_prompt)
 
     # Safely parse the AI output
     try:

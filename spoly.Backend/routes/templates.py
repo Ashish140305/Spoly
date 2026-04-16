@@ -35,8 +35,17 @@ async def create_template(payload: TemplatePayload):
     try:
         doc = payload.dict()
         result = templates_collection.insert_one(doc)
-        doc["id"] = str(result.inserted_id)
-        return {"success": True, "template": doc}
+        # Build the response template with a clean string id
+        response_template = {
+            "id": str(result.inserted_id),
+            "name": doc["name"],
+            "desc": doc["desc"],
+            "prompt": doc["prompt"],
+            "category": doc.get("category", "Custom"),
+            "theme": doc.get("theme", "custom"),
+            "isCustom": True,
+        }
+        return {"success": True, "template": response_template}
     except Exception as e:
         print("🚨 Error saving template:")
         traceback.print_exc()

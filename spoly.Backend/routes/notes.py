@@ -632,8 +632,7 @@ async def generate_notes(
 
         print("🚀 Processing FINAL complete audio file...", flush=True)
         context_text = await extract_context_text(context_files)
-        effective_template = custom_prompt if custom_prompt else template
-        result = await asyncio.to_thread(run_pipeline, text, effective_template, context_text)
+        result = await asyncio.to_thread(run_pipeline, text, template, context_text, custom_prompt)
         result["transcript"] = text
         return result
 
@@ -662,8 +661,7 @@ async def process_raw_text(
 
         print(f"🧠 Processing Raw Text ({len(transcript)} chars)", flush=True)
         context_text = await extract_context_text(context_files)
-        effective_template = custom_prompt if custom_prompt else template
-        result = await asyncio.to_thread(run_pipeline, transcript, effective_template, context_text)
+        result = await asyncio.to_thread(run_pipeline, transcript, template, context_text, custom_prompt)
         result["transcript"] = transcript
         return result
 
@@ -702,25 +700,30 @@ async def generate_from_youtube(
 
         def get_transcript(vid_id):
             from youtube_transcript_api import YouTubeTranscriptApi
-            transcript_list = YouTubeTranscriptApi.list_transcripts(vid_id)
+
+            ytt_api = YouTubeTranscriptApi()
+
+            # Try English first, then fall back to any available language
             try:
-                transcript = transcript_list.find_transcript(["en", "en-US", "en-GB"])
+                fetched_transcript = ytt_api.fetch(vid_id, languages=["en", "en-US", "en-GB"])
             except Exception:
-                for t in transcript_list:
-                    transcript = t.translate("en")
-                    break
-            return transcript.fetch()
+                try:
+                    # Fallback: fetch any available transcript
+                    fetched_transcript = ytt_api.fetch(vid_id)
+                except Exception as e2:
+                    raise Exception(f"No transcript available for this video: {str(e2)}")
+
+            return fetched_transcript.to_raw_data()
 
         transcript_data = await asyncio.to_thread(get_transcript, video_id)
-        text = " ".join([chunk["text"] for chunk in transcript_data])
+        text = " ".join([snippet.get("text", "") for snippet in transcript_data])
 
         if not text:
             raise Exception("Could not fetch transcript")
 
         print(f"🗣️ YT TRANSCRIBED ({len(text)} chars)", flush=True)
         context_text = await extract_context_text(context_files)
-        effective_template = custom_prompt if custom_prompt else template
-        result = await asyncio.to_thread(run_pipeline, text, effective_template, context_text)
+        result = await asyncio.to_thread(run_pipeline, text, template, context_text, custom_prompt)
         result["transcript"] = text
         return result
 

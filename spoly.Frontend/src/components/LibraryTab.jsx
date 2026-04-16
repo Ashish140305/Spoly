@@ -2288,7 +2288,7 @@ export default function LibraryTab({
       </div>
 
       {notesViewMode === "grid" && (
-        <div className="relative z-10 grid w-full grid-cols-1 gap-6 md:gap-8 pt-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="relative z-10 grid w-full grid-cols-1 gap-6 md:gap-8 pt-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           <AnimatePresence>
             {sortedNotes.map((note, index) => {
               const safeTags = Array.isArray(note.tags) ? note.tags : [];
