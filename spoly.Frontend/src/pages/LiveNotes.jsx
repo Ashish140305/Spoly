@@ -3220,6 +3220,12 @@ export default function LiveNotes() {
   });
 
   useEffect(() => {
+    if (document.getElementById("spoly-extension-marker")) {
+      setIsWidgetDeployed(Boolean(document.getElementById("spoly-fab-root")));
+    }
+  }, []);
+
+  useEffect(() => {
     const handleMessage = (e) => {
       const type = e.data?.type;
 
@@ -3245,6 +3251,8 @@ export default function LiveNotes() {
         } else {
           pauseLocalRef.current(e.data.isPaused);
         }
+      } else if (type === "SPOLY_WIDGET_STATUS") {
+        setIsWidgetDeployed(Boolean(e.data.status));
       } else if (type === "SPOLY_RECEIVE_CHUNK") {
         if (isFinalizingRef.current) return;
 
@@ -3523,7 +3531,6 @@ export default function LiveNotes() {
   const handleToggleWidget = () => {
     if (document.getElementById("spoly-extension-marker")) {
       window.postMessage({ type: "SPOLY_TOGGLE_WIDGET" }, "*");
-      setIsWidgetDeployed(!isWidgetDeployed);
     } else
       alert(
         "⚠️ CONNECTION PENDING\n\nPlease completely refresh this page (F5), and try clicking the button again!",

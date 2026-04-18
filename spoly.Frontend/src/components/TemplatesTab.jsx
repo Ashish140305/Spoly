@@ -2070,6 +2070,8 @@ export default function TemplatesTab({
       : templateFilter;
 
   const filteredTemplates = templatesDB.filter((t) => {
+    if (t.isCustom) return false;
+
     const matchesCategory =
       currentFilter === "All" ||
       (currentFilter === "Favorites" && favorites.includes(t.id)) ||
