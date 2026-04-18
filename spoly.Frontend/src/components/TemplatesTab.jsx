@@ -2475,10 +2475,9 @@ export default function TemplatesTab({
                   <div className="absolute top-4 right-4 z-20 flex gap-2">
                     {temp.isCustom && !temp.isCreateCard && (
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          onDeleteCustomTemplate(temp.id);
-                          showToast("Custom Template Deleted");
+                          await onDeleteCustomTemplate(temp.id);
                         }}
                         className={`p-2.5 rounded-xl backdrop-blur-md transition-all duration-300 ${isDarkMode ? "bg-red-500/20 text-red-400 border border-red-500/30 opacity-0 group-hover:opacity-100 shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:bg-red-500/40 hover:text-red-300" : "bg-red-50 text-red-500 border border-red-200 opacity-0 group-hover:opacity-100 hover:bg-red-100"}`}
                         title="Delete template"

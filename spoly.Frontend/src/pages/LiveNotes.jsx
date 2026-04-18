@@ -2747,7 +2747,7 @@ export default function LiveNotes() {
 
   useEffect(() => {
     if (user?.id && !hasSyncedSettings) {
-      fetch(`http://127.0.0.1:8000/api/users/settings/${user.id}`)
+      fetch(`${BACKEND_URL}/api/users/settings/${user.id}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.settings && Object.keys(data.settings).length > 0) {
@@ -2784,7 +2784,7 @@ export default function LiveNotes() {
 
       // Debounce saving slightly using setTimeout to avoid spamming the DB
       const handler = setTimeout(() => {
-        fetch(`http://127.0.0.1:8000/api/users/settings`, {
+        fetch(`${BACKEND_URL}/api/users/settings`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -2852,11 +2852,19 @@ export default function LiveNotes() {
       const data = await res.json();
       if (data.success) {
         setCustomTemplates((prev) => prev.filter((t) => t.id !== templateId));
+        setActiveAiTemplate((prev) =>
+          prev?.id === templateId ? null : prev,
+        );
         showToast("Template deleted.");
+        return true;
       }
+
+      showToast("Failed to delete template.");
+      return false;
     } catch (err) {
       console.error("Failed to delete template", err);
       showToast("Failed to delete template.");
+      return false;
     }
   };
 
@@ -3173,6 +3181,7 @@ export default function LiveNotes() {
     if (isFinalizingRef.current) return;
 
     if (isExtensionActive) {
+      setStatus("processing");
       window.postMessage({ type: "SPOLY_REMOTE_STOP_EXTENSION" }, "*");
     } else {
       isFinalizingRef.current = true;

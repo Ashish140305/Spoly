@@ -54,8 +54,14 @@ async def create_template(payload: TemplatePayload):
 @router.delete("/{template_id}")
 async def delete_template(template_id: str):
     try:
+        if not ObjectId.is_valid(template_id):
+            raise HTTPException(status_code=400, detail="Invalid template id")
         result = templates_collection.delete_one({"_id": ObjectId(template_id)})
-        return {"success": result.deleted_count > 0}
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Template not found")
+        return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         print("🚨 Error deleting template:", e)
         raise HTTPException(status_code=500, detail="Database error")
