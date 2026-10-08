@@ -2247,7 +2247,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUser } from "@clerk/clerk-react";
+import { useUser } from "../components/MiniMothAuth";
 import {
   Mic,
   Square,

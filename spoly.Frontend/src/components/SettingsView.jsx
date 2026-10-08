@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserButton } from "@clerk/clerk-react";
+import { UserButton } from "./MiniMothAuth";
 import {
   ToggleLeft,
   ToggleRight,

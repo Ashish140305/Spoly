@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Lenis from 'lenis';
 import gsap from 'gsap';
 import { motion, useScroll, useSpring, useMotionValue, useTransform, useMotionTemplate, AnimatePresence } from 'framer-motion';
-import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from '../components/MiniMothAuth';
 import { Mic, Layout, Workflow, ChevronRight, CheckCircle2, UploadCloud, Cpu, FileText, Code, Star, Quote, ChevronDown, Zap, Sparkles, Search, User, Volume2, Terminal, Download } from 'lucide-react';
 import MermaidDiagram from '../components/MermaidDiagram';
 import BubbleMenu from '../components/BubbleMenu';

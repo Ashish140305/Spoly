@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserButton } from '@clerk/clerk-react';
+import { UserButton } from './MiniMothAuth';
 import { Mic, ChevronLeft, Menu, PlusCircle, LayoutDashboard, FolderSearch, Layers, Settings } from 'lucide-react';
 
 export default function Sidebar({ isDarkMode, isSidebarOpen, setIsSidebarOpen, handleReset, activeTab, setActiveTab, setSelectedNote, user }) {

@@ -107,7 +107,7 @@ from pymongo import MongoClient
 from fastapi.middleware.cors import CORSMiddleware
 from svix.webhooks import Webhook, WebhookVerificationError
 
-from routes import notes, users, templates
+from routes import auth, notes, users, templates
 from utils.config import MONGO_URI, MONGO_DB_NAME, CLERK_SECRET
 
 app = FastAPI()
@@ -126,6 +126,7 @@ app.add_middleware(
 app.include_router(notes.router, prefix="/api/notes", tags=["Notes"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(templates.router, prefix="/api/templates", tags=["Templates"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 
 
 @app.get("/")

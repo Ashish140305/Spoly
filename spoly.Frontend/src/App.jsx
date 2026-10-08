@@ -6,7 +6,7 @@ import {
   Navigate,
   useNavigate
 } from "react-router-dom";
-import { ClerkProvider, SignedIn, SignedOut } from "@clerk/clerk-react";
+import { AuthProvider, SignedIn, SignedOut } from "./components/MiniMothAuth";
 
 // Import Pages
 import LandingPage from "./pages/LandingPage";
@@ -14,15 +14,6 @@ import LiveNotes from "./pages/LiveNotes";
 import AboutUs from "./pages/AboutUs";
 import LegalDoc from "./pages/LegalDoc";
 import TermsOfService from "./pages/TermsOfService";
-
-// Import your Publishable Key
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
-if (!PUBLISHABLE_KEY) {
-  throw new Error(
-    "Missing Publishable Key. Please add it to your .env.local file.",
-  );
-}
 
 // A wrapper to protect routes
 const ProtectedRoute = ({ children }) => {
@@ -64,7 +55,7 @@ const ExtensionListener = () => {
 
 function App() {
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <AuthProvider>
       <Router>
         {/* Mount the listener inside the Router so it can use navigate() */}
         <ExtensionListener />
@@ -87,7 +78,7 @@ function App() {
           />
         </Routes>
       </Router>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }
 

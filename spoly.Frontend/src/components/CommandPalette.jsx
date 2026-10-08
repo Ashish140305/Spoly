@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, User, Zap, Moon, Sun, Monitor } from 'lucide-react';
-import { SignInButton } from '@clerk/clerk-react';
+import { SignInButton } from './MiniMothAuth';
 
 const CommandPalette = ({ isOpen, setIsOpen, setIsDark, isDark }) => {
   useEffect(() => {
